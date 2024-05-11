@@ -1,0 +1,3 @@
+LIBRARY  luagcrypt
+EXPORTS
+	luaopen_luagcrypt

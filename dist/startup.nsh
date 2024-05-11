@@ -1,0 +1,1 @@
+load  fs0:windbg.efi
