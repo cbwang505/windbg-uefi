@@ -1,0 +1,38 @@
+[defines]
+  INF_VERSION = 0x00010005 
+  BASE_NAME = SimpleVisor
+  FILE_GUID = 22D5AE41-147E-4C44-AE72-ECD9BBB422D5
+  MODULE_TYPE = UEFI_APPLICATION
+  ENTRY_POINT = UefiMain
+ 
+[Sources]
+  shv.c
+  shvutil.c
+  shvvmx.c
+  shvvmxhv.c
+  shvvp.c
+  uefi/shvos.c
+ 
+[Sources.X64]
+  shvvmxhvx64.asm
+  uefi/shvosx64.asm
+ 
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  IntelFrameworkPkg/IntelFrameworkPkg.dec  
+  IntelFrameworkModulePkg/IntelFrameworkModulePkg.dec  
+  StdLib/StdLib.dec
+ 
+[LibraryClasses]
+  UefiLib
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+  MemoryAllocationLib
+  DebugLib
+ 
+[Protocols]
+  gEfiMpServiceProtocolGuid  
+  
+[Depex]
+  TRUE 

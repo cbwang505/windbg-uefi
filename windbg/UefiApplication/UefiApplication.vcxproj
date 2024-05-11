@@ -1,0 +1,72 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{79D78FD5-8F41-442F-944E-81774DC9DF39}</ProjectGuid>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(SolutionDir)\poc.default.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.props" />
+  </ImportGroup>
+  <Import Project="$(SolutionDir)\poc.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />
+  </ImportGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>$(SolutionDir);$(EDK_PATH)\MdePkg\Include;$(EDK_PATH)\MdePkg\Include\X64;$(EDK_PATH)\ShellPkg\Include;$(EDK_PATH)\CryptoPkg\Include</IncludePath>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <Link>
+      <AdditionalDependencies>UefiApplicationEntryPoint.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/SourceLevelDebugPkg/Library/PeCoffExtraActionLibDebug/PeCoffExtraActionLibDebug/OUTPUT/PeCoffExtraActionLib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/BasePeCoffGetEntryPointLib/BasePeCoffGetEntryPointLib/OUTPUT/BasePeCoffGetEntryPointLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>EFI Application</SubSystem>
+      <SectionAlignment Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4096</SectionAlignment>
+      <SpecifySectionAttributes Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.xdata,ERW</SpecifySectionAttributes>
+      <SetChecksum Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</SetChecksum>
+      <ImageHasSafeExceptionHandlers Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ImageHasSafeExceptionHandlers>
+    </Link>
+    <ClCompile>
+      <TreatWarningAsError Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</TreatWarningAsError>
+      <Optimization Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Disabled</Optimization>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir);</AdditionalIncludeDirectories>
+      <BufferSecurityCheck Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</BufferSecurityCheck>
+      <DebugInformationFormat Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ProgramDatabase</DebugInformationFormat>
+      <WholeProgramOptimization Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</WholeProgramOptimization>
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
+    </ClCompile>
+    <PostBuildEvent>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">xcopy $(TargetPath) "E:\sym\UefiApplication.efi\0000000000000000000000000000000012000\" /E/H/C/I/Y/Q/R
+"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -exec bypass -Command "Stop-VM -Name testuefidbgvhdxv2 -TurnOff -Force"
+"C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\symstore.exe" add /r /f "$(TargetPath)" /s "%SYMBOL_STORE%" /t niii
+"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -exec bypass -Command " Mount-VHD -Path 'F:\hyperv\testuefidbgvhdxv2\Virtual Hard Disks\testuefidbgvhdxv2.vhdx'"
+"C:\Windows\System32\xcopy.exe"  $(TargetPath) "K:\" /E/H/C/I/Y/Q/R
+"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -exec bypass -Command "Dismount-VHD 'F:\hyperv\testuefidbgvhdxv2\Virtual Hard Disks\testuefidbgvhdxv2.vhdx'"</Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">"C:\Windows\System32\taskkill.exe" /f /im windbg.exe
+exit 0</Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\FtdiUsbSerialDxe\PEHelper.c" />
+    <ClCompile Include="..\GSStub.c" />
+    <ClCompile Include="hvapp.c" />
+    <ClCompile Include="utils.c" />
+    <ClCompile Include="vmbus.c" />
+    <ClCompile Include="windbgplugin.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="hv.asm">
+      <FileType>Document</FileType>
+    </MASM>
+  </ItemGroup>
+</Project>

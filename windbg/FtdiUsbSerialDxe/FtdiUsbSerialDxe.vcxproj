@@ -1,0 +1,94 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{DF325AB7-67A6-473E-93FF-16955AFBC064}</ProjectGuid>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <UseOfMfc>Static</UseOfMfc>
+    <PlatformToolset>v142</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)\poc.default.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.props" />
+  </ImportGroup>
+  <Import Project="$(SolutionDir)\poc.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />
+  </ImportGroup>
+  <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>$(SolutionDir);E:\git\UEFIResearch\VisualUefi-master\poc\..\edk2\MdeModulePkg\Include;E:\git\UEFIResearch\VisualUefi-master\poc\..\edk2\UefiCpuPkg\Include;E:\git\UEFIResearch\VisualUefi-master\poc\..\edk2\SourceLevelDebugPkg\Include;E:\git\UEFIResearch\VisualUefi-master\poc\..\edk2\SourceLevelDebugPkg\Library\DebugAgent\DebugAgentCommon\X64;E:\git\UEFIResearch\VisualUefi-master\poc\..\edk2\SourceLevelDebugPkg\Include\Ia32;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir);$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <Link>
+      <AdditionalDependencies>$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/RegisterFilterLibNull/RegisterFilterLibNull/OUTPUT/FilterLibNull.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/BaseCpuLib/BaseCpuLib/OUTPUT/BaseCpuLib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/UefiCpuPkg/Library/SecPeiDxeTimerLibUefiCpu/SecPeiDxeTimerLibUefiCpu/OUTPUT/SecPeiDxeTimerLibUefiCpu.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/UefiCpuPkg/Library/BaseXApicLib/BaseXApicLib/OUTPUT/BaseXApicLib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/BasePcdLibNull/BasePcdLibNull/OUTPUT/BasePcdLibNull.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/BaseIoLibIntrinsic/BaseIoLibIntrinsic/OUTPUT/BaseIoLibIntrinsic.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/BaseMemoryLib/BaseMemoryLib/OUTPUT/BaseMemoryLib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/BaseLib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/BasePciCf8Lib/BasePciCf8Lib/OUTPUT/BasePciCf8Lib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/BasePciLibCf8/BasePciLibCf8/OUTPUT/BasePciLibCf8.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdeModulePkg/Library/BasePlatformHookLibNull/BasePlatformHookLibNull/OUTPUT/BasePlatformHookLibNull.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/BaseDebugPrintErrorLevelLib/BaseDebugPrintErrorLevelLib/OUTPUT/BaseDebugPrintErrorLevelLib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdeModulePkg/Library/BaseSerialPortLib16550/BaseSerialPortLib16550/OUTPUT/BaseSerialPortLib16550.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/BasePrintLib/BasePrintLib/OUTPUT/BasePrintLib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/BaseDebugLibSerialPort/BaseDebugLibSerialPort/OUTPUT/BaseDebugLibSerialPort.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/UefiBootServicesTableLib/UefiBootServicesTableLib/OUTPUT/UefiBootServicesTableLib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/UefiMemoryAllocationLib/UefiMemoryAllocationLib/OUTPUT/UefiMemoryAllocationLib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/UefiRuntimeServicesTableLib/UefiRuntimeServicesTableLib/OUTPUT/UefiRuntimeServicesTableLib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/UefiDevicePathLib/UefiDevicePathLib/OUTPUT/UefiDevicePathLib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/UefiLib/UefiLib/OUTPUT/UefiLib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/SourceLevelDebugPkg/Library/PeCoffExtraActionLibDebug/PeCoffExtraActionLibDebug/OUTPUT/PeCoffExtraActionLib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/BasePeCoffGetEntryPointLib/BasePeCoffGetEntryPointLib/OUTPUT/BasePeCoffGetEntryPointLib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/BaseSynchronizationLib/BaseSynchronizationLib/OUTPUT/BaseSynchronizationLib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/SourceLevelDebugPkg/Library/DebugCommunicationLibSerialPort/DebugCommunicationLibSerialPort/OUTPUT/DebugCommunicationLibSerialPort.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/DxeHobLib/DxeHobLib/OUTPUT/DxeHobLib.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdeModulePkg/Library/BaseResetSystemLibNull/BaseResetSystemLibNull/OUTPUT/BaseResetSystemLibNull.lib;$(EDK2ROOT)/Build/SourceLevelDebugPkg/RELEASE_VS2019/X64/MdePkg/Library/UefiDriverEntryPoint/UefiDriverEntryPoint/OUTPUT/UefiDriverEntryPoint.lib;$(EDK2ROOT)\Build\SourceLevelDebugPkg\RELEASE_VS2019\X64\SourceLevelDebugPkg\Library\DebugAgent\DxeDebugAgentLib\OUTPUT\DxeDebugAgent\DxeDebugAgentLib.obj;$(EDK2ROOT)\Build\SourceLevelDebugPkg\RELEASE_VS2019\X64\SourceLevelDebugPkg\Library\DebugAgent\DxeDebugAgentLib\OUTPUT\DxeDebugAgent\SerialIo.obj;$(EDK2ROOT)\Build\SourceLevelDebugPkg\RELEASE_VS2019\X64\SourceLevelDebugPkg\Library\DebugAgent\DxeDebugAgentLib\OUTPUT\DebugAgentCommon\DebugMp.obj;$(EDK2ROOT)\Build\SourceLevelDebugPkg\RELEASE_VS2019\X64\SourceLevelDebugPkg\Library\DebugAgent\DxeDebugAgentLib\OUTPUT\DebugAgentCommon\DebugTimer.obj;$(EDK2ROOT)\Build\SourceLevelDebugPkg\RELEASE_VS2019\X64\SourceLevelDebugPkg\Library\DebugAgent\DxeDebugAgentLib\OUTPUT\DebugAgentCommon\X64\ArchDebugSupport.obj</AdditionalDependencies>
+      <SubSystem Condition="'$(Configuration)|$(Platform)'=='Release|x64'">EFI Runtime</SubSystem>
+      <IgnoreAllDefaultLibraries Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</IgnoreAllDefaultLibraries>
+      <SpecifySectionAttributes Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.xdata,ERW</SpecifySectionAttributes>
+      <SectionAlignment Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4096</SectionAlignment>
+      <SetChecksum Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</SetChecksum>
+    </Link>
+    <ClCompile>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectDir)</AdditionalIncludeDirectories>
+      <TreatWarningAsError Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</TreatWarningAsError>
+      <WholeProgramOptimization Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</WholeProgramOptimization>
+      <Optimization Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Disabled</Optimization>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_M_AMD64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <TreatWChar_tAsBuiltInType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</TreatWChar_tAsBuiltInType>
+      <DebugInformationFormat Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ProgramDatabase</DebugInformationFormat>
+      <RuntimeLibrary Condition="'$(Configuration)|$(Platform)'=='Release|x64'">MultiThreaded</RuntimeLibrary>
+      <BufferSecurityCheck Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</BufferSecurityCheck>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'" />
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
+      <ControlFlowGuard Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ControlFlowGuard>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotSet</EnableEnhancedInstructionSet>
+      <SupportJustMyCode Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</SupportJustMyCode>
+      <CompileAsWinRT Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CompileAsWinRT>
+      <InlineFunctionExpansion Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Disabled</InlineFunctionExpansion>
+    </ClCompile>
+    <PostBuildEvent>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -exec bypass -Command "Stop-VM -Name testuefidbgvhdxv2 -TurnOff -Force"
+"C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\symstore.exe" add /r /f "E:\git\UEFIResearch\VisualUefi-master\poc\x64\Release" /s "%SYMBOL_STORE%" /t niii
+"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -exec bypass -Command " Mount-VHD -Path 'F:\hyperv\testuefidbgvhdxv2\Virtual Hard Disks\testuefidbgvhdxv2.vhdx'"
+"C:\Windows\System32\xcopy.exe"  $(TargetPath) "K:\" /E/H/C/I/Y/Q/R
+"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -exec bypass -Command "Dismount-VHD 'F:\hyperv\testuefidbgvhdxv2\Virtual Hard Disks\testuefidbgvhdxv2.vhdx'"</Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">"C:\Windows\System32\taskkill.exe" /f /im windbg.exe
+exit 0</Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="$(EDK_PATH)\OptionRomPkg\Bus\Usb\FtdiUsbSerialDxe\ComponentName.c" />
+    <ClCompile Include="$(EDK_PATH)\OptionRomPkg\Bus\Usb\FtdiUsbSerialDxe\FtdiUsbSerialDriver.c" />
+    <ClCompile Include="..\GSStub.c" />
+    <ClCompile Include="..\UefiApplication\utils.c" />
+    <ClCompile Include="AutoGen.c" />
+    <ClCompile Include="DebugAgentDxe.c" />
+    <ClCompile Include="DebugCommunicationLibSerialPort.c" />
+    <ClCompile Include="hvapi.c" />
+    <ClCompile Include="PEHelper.c" />
+    <ClCompile Include="vmbusdxe.c" />
+    <ClCompile Include="windbg.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="..\UefiApplication\hv.asm" />
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="Interrupt.asm">
+      <FileType>Document</FileType>
+    </MASM>
+  </ItemGroup>
+</Project>
