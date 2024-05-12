@@ -1429,107 +1429,113 @@ namespace Wireshark
                 //timer.Enabled = false;
                 int lenread = pipeServer.EndRead(ar);
                 int rawlen = lenread;
-                inbufClientcachelock.WaitOne();
-                inbufClientcache.Enqueue(outbufServer.Take(lenread).ToList());
-               
-                inbufClientcachelock.ReleaseMutex();
-                if (SyncFeedBack)
+                if (lenread > 0)
                 {
-                    while (!serverreadlock.Wait(30000))
+                    inbufClientcachelock.WaitOne();
+                    inbufClientcache.Enqueue(outbufServer.Take(lenread).ToList());
+
+                    inbufClientcachelock.ReleaseMutex();
+                    if (SyncFeedBack)
                     {
-                        Console.WriteLine("fix WriteFile timeout");
-                        foreach (VmbusWriteInfo vmbusWriteInfo in FeedbackSListeqList.Values)
+                        while (!serverreadlock.Wait(30000))
                         {
-                            uint lpNumberOfBytesWritten = 0;
-                            bool ret = Kernel32.WriteFile(pipinst.DangerousGetHandle(), vmbusWriteInfo.writePtr,
-                                (uint)vmbusWriteInfo.writelen,
-                                ref lpNumberOfBytesWritten,
-                                IntPtr.Zero);
-                            if (!ret)
+                            Console.WriteLine("fix WriteFile timeout");
+                            foreach (VmbusWriteInfo vmbusWriteInfo in FeedbackSListeqList.Values)
                             {
-                                Console.WriteLine("WriteFile Vmbus GetLastWin32Error:=>" + Marshal.GetLastWin32Error());
-                                Environment.Exit(0);
-                            }
-                            else
-                            {
-                                Console.WriteLine("fix WriteFile Vmbus:=> " + ret + " lpNumberOfBytesWritten:=>" +
-                                                  lpNumberOfBytesWritten.ToString("x") + ",seq :=>" +
-                                                  gseqnum.ToString("x"));
+                                uint lpNumberOfBytesWritten = 0;
+                                bool ret = Kernel32.WriteFile(pipinst.DangerousGetHandle(), vmbusWriteInfo.writePtr,
+                                    (uint) vmbusWriteInfo.writelen,
+                                    ref lpNumberOfBytesWritten,
+                                    IntPtr.Zero);
+                                if (!ret)
+                                {
+                                    Console.WriteLine("WriteFile Vmbus GetLastWin32Error:=>" +
+                                                      Marshal.GetLastWin32Error());
+                                    Environment.Exit(0);
+                                }
+                                else
+                                {
+                                    Console.WriteLine("fix WriteFile Vmbus:=> " + ret + " lpNumberOfBytesWritten:=>" +
+                                                      lpNumberOfBytesWritten.ToString("x") + ",seq :=>" +
+                                                      gseqnum.ToString("x"));
+                                }
                             }
                         }
+
+
+
                     }
 
+                    Console.WriteLine("pipeServer EndRead " + rawlen);
 
-
-                }
-
-                Console.WriteLine("pipeServer EndRead " + rawlen);
-
-                if (gWindbgProtocol == VmbusWindbgProtocol.NativeCom)
-                {
-                    List<byte> oueBytes = new List<byte>();
-                    foreach (byte b in outbufServer.Take(lenread))
+                    if (gWindbgProtocol == VmbusWindbgProtocol.NativeCom)
                     {
-                        oueBytes.Add(b);
-                    }
-                    SendToWireshark(oueBytes.ToArray(), true);
-                    Array.Copy(outbufServer, 0, inbufClient, 0, lenread);
-                    pipeClient.BeginWrite(inbufClient, 0, lenread, pipeServerBeginWriteAsyncCallback, lenread);
-
-                }
-                else if (gWindbgProtocol == VmbusWindbgProtocol.VmbusChannelAsync)
-                {
-
-
-                    /*while (!VmbusConnected)
-                    {
-                        Kernel32.SleepEx(10, true);
-                    }
-                    SendToWireshark(oueBytes.ToArray(), true);
-                    OVERLAPPED lpOverlappedWrite = new OVERLAPPED();
-
-                    VMBUSPIPE_HDR hdr = new VMBUSPIPE_HDR((UInt32)lenread);
-                    List<byte> hdrbyte = hdr.ToByteArray().ToList();
-                    hdrbyte.AddRange(oueBytes);
-                    UInt32 Checksum = GenChecksum(hdrbyte);
-                    VMBUSPIPE_HDR hdrnew = new VMBUSPIPE_HDR((UInt32)lenread, Checksum);
-                    List<byte> hdrbytenew = hdrnew.ToByteArray().ToList();
-                    hdrbytenew.AddRange(oueBytes);
-                    byte[] writebufvmbus = hdrbytenew.ToArray();
-                    //Console.WriteLine(Utils.HexDump(writebufvmbus, writebufvmbus.Length));
-                    IntPtr writebufvmbusptr = Marshal.AllocHGlobal(writebufvmbus.Length);//pointer to byte array
-                    Marshal.Copy( writebufvmbus, 0, writebufvmbusptr, writebufvmbus.Length);
-                    bool ret = Kernel32.WriteFileEx(pipinst.DangerousGetHandle(), writebufvmbusptr, (uint)writebufvmbus.Length, ref lpOverlappedWrite,
-                          writeCompletionRoutine);
-                    if (!ret)
-                    {
-                        Console.WriteLine("WriteFileEx GetLastWin32Error:=>" + Marshal.GetLastWin32Error());
-                    }
-                    Console.WriteLine("WriteFile Vmbus:=> " + ret + " lpNumberOfBytesWritten:=>" + writebufvmbus.Length);*/
-
-
-
-
-                    if (lenread >= 0x10)
-                    {
-                        /*Task.Factory.StartNew((objstack) =>
+                        List<byte> oueBytes = new List<byte>();
+                        foreach (byte b in outbufServer.Take(lenread))
                         {
+                            oueBytes.Add(b);
+                        }
 
-                            VmbusWriteFulsh(objstack as VmbusWriteInfo);
-                        }, writeinf);*/
+                        SendToWireshark(oueBytes.ToArray(), true);
+                        Array.Copy(outbufServer, 0, inbufClient, 0, lenread);
+                        pipeClient.BeginWrite(inbufClient, 0, lenread, pipeServerBeginWriteAsyncCallback, lenread);
 
                     }
-
-                   
-                }
-                else if (gWindbgProtocol == VmbusWindbgProtocol.VmbusChannelSync)
-                {
-                    lenread = inbufClientcache.Count;
-                    if (lenread >= 0x10)
+                    else if (gWindbgProtocol == VmbusWindbgProtocol.VmbusChannelAsync)
                     {
-                        //  VmbusWriteFulsh();
+
+
+                        /*while (!VmbusConnected)
+                        {
+                            Kernel32.SleepEx(10, true);
+                        }
+                        SendToWireshark(oueBytes.ToArray(), true);
+                        OVERLAPPED lpOverlappedWrite = new OVERLAPPED();
+    
+                        VMBUSPIPE_HDR hdr = new VMBUSPIPE_HDR((UInt32)lenread);
+                        List<byte> hdrbyte = hdr.ToByteArray().ToList();
+                        hdrbyte.AddRange(oueBytes);
+                        UInt32 Checksum = GenChecksum(hdrbyte);
+                        VMBUSPIPE_HDR hdrnew = new VMBUSPIPE_HDR((UInt32)lenread, Checksum);
+                        List<byte> hdrbytenew = hdrnew.ToByteArray().ToList();
+                        hdrbytenew.AddRange(oueBytes);
+                        byte[] writebufvmbus = hdrbytenew.ToArray();
+                        //Console.WriteLine(Utils.HexDump(writebufvmbus, writebufvmbus.Length));
+                        IntPtr writebufvmbusptr = Marshal.AllocHGlobal(writebufvmbus.Length);//pointer to byte array
+                        Marshal.Copy( writebufvmbus, 0, writebufvmbusptr, writebufvmbus.Length);
+                        bool ret = Kernel32.WriteFileEx(pipinst.DangerousGetHandle(), writebufvmbusptr, (uint)writebufvmbus.Length, ref lpOverlappedWrite,
+                              writeCompletionRoutine);
+                        if (!ret)
+                        {
+                            Console.WriteLine("WriteFileEx GetLastWin32Error:=>" + Marshal.GetLastWin32Error());
+                        }
+                        Console.WriteLine("WriteFile Vmbus:=> " + ret + " lpNumberOfBytesWritten:=>" + writebufvmbus.Length);*/
+
+
+
+
+                        if (lenread >= 0x10)
+                        {
+                            /*Task.Factory.StartNew((objstack) =>
+                            {
+    
+                                VmbusWriteFulsh(objstack as VmbusWriteInfo);
+                            }, writeinf);*/
+
+                        }
+
+
+                    }
+                    else if (gWindbgProtocol == VmbusWindbgProtocol.VmbusChannelSync)
+                    {
+                        lenread = inbufClientcache.Count;
+                        if (lenread >= 0x10)
+                        {
+                            //  VmbusWriteFulsh();
+                        }
                     }
                 }
+
                 for (var i = 0; i < WiresharkSender.Current.DefaultBufferLength; i++)
                 {
                     WiresharkSender.Current.outbufServer[i] = 0;

@@ -658,18 +658,23 @@ CopyRingBuferrMemoryInput(
 			receivelen = vmbus_receivepacket_windbg(bufferreceive, remainlen, 0, &buffer_actual_len, &replyreq);
 			if (receivelen == 0)
 			{
-				if(ContinueOnStack)
-				{
-					continue;
-				}
+				
 			
 				failcount++;
-				Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
-				KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
-				if (failcount > 2)
+				if (failcount > 1)
 				{
-					ResetRingBuferInputToOrigin();
+					if (ContinueOnStack)
+					{
+						continue;
+					}
+					//ResetRingBuferInputToOrigin();
 					return KDP_PACKET_TIMEOUT;
+				}
+				else
+				{
+					Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
+					KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
+					continue;
 				}
 
 			}
@@ -712,20 +717,22 @@ CopyRingBuferrMemoryInput(
 			receivelen = vmbus_receivepacket_windbg(bufferreceive, remainlen, buflennext, &buffer_actual_len, &replyreq);
 			if (receivelen == 0)
 			{
-				if (ContinueOnStack)
-				{
-					continue;
-				}
+				
 				failcount++;
-				Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
-				KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
-				if (failcount > 2)
+				
+				if (failcount > 1)
 				{
-					ResetRingBuferInputToOrigin();
+					if (ContinueOnStack)
+					{
+						continue;
+					}
+					//ResetRingBuferInputToOrigin();
 					return KDP_PACKET_TIMEOUT;
 				}
 				else
 				{
+					Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
+					KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
 					continue;
 				}
 			}
@@ -786,20 +793,21 @@ CopyRingBuferrMemoryInput(
 				receivelen = vmbus_receivepacket_windbg(bufferreceive, remainlen, buflennext, &buffer_actual_len, &replyreq);
 				if (receivelen == 0)
 				{
-					if (ContinueOnStack)
-					{
-						continue;
-					}
+					
 					failcount++;
-					Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
-					KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
-					if (failcount > 2)
+					if (failcount > 1)
 					{
-						ResetRingBuferInputToOrigin();
+						if (ContinueOnStack)
+						{
+							continue;
+						}
+						//ResetRingBuferInputToOrigin();
 						return KDP_PACKET_TIMEOUT;
 					}
 					else
 					{
+						Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
+						KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
 						continue;
 					}
 				}
@@ -853,20 +861,21 @@ CopyRingBuferrMemoryInput(
 				receivelen = vmbus_receivepacket_windbg(bufferreceive, remainlen, 0, &buffer_actual_len, &replyreq);
 				if (receivelen == 0)
 				{
-					if (ContinueOnStack)
-					{
-						continue;
-					}
+				
 					failcount++;
-					Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
-					KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
-					if (failcount > 2)
+					if (failcount > 1)
 					{
-						ResetRingBuferInputToOrigin();
+						if (ContinueOnStack)
+						{
+							continue;
+						}
+						//ResetRingBuferInputToOrigin();
 						return KDP_PACKET_TIMEOUT;
 					}
 					else
 					{
+						Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
+						KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
 						continue;
 					}
 				}
@@ -910,20 +919,21 @@ CopyRingBuferrMemoryInput(
 			receivelen = vmbus_receivepacket_windbg(bufferreceive, remainlen, 0, &buffer_actual_len, &replyreq);
 			if (receivelen == 0)
 			{
-				if (ContinueOnStack)
-				{
-					continue;
-				}
+				
 				failcount++;
-				Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
-				KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
-				if (failcount > 2)
+				if (failcount > 1)
 				{
-					ResetRingBuferInputToOrigin();
+					if (ContinueOnStack)
+					{
+						continue;
+					}
+					//ResetRingBuferInputToOrigin();
 					return KDP_PACKET_TIMEOUT;
 				}
 				else
 				{
+					Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
+					KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
 					continue;
 				}
 			}
@@ -4624,15 +4634,18 @@ BOOLEAN  KdpReadVirtualMemoryMap(PSTRING Data, UINT64 TargetBaseAddress, ULONG L
 	{
 		return FALSE;
 	}
-	if (Context && LowCheckMemoryAddr(Context->Rsp))
+	if (Context!=NULL)
 	{
-		//
-		if (TargetBaseAddress >= Context->Rsp - 0x1000 && TargetBaseAddress < Context->Rsp + 0x1000)
+		if (LowCheckMemoryAddr(Context->Rsp))
 		{
-			KdpMoveMemory((void*)Data->Buffer, (void*)(TargetBaseAddress), Length);
+			//
+			if (TargetBaseAddress >= Context->Rsp - 0x1000 && TargetBaseAddress < Context->Rsp + 0x1000)
+			{
+				KdpMoveMemory((void*)Data->Buffer, (void*)(TargetBaseAddress), Length);
 
 
-			return TRUE;
+				return TRUE;
+			}
 		}
 	}
 	for (int i = 0; i < KD_SYMBOLS_MAX; i++)
