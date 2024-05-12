@@ -1528,6 +1528,7 @@ int vmbus_receivepacket_windbg(void* buffer, UINT32 buflen,UINT32 buflennext, UI
 	int failcount = 0;
 	int ret = 0;
 	BOOLEAN hasdata = FALSE;
+	BOOLEAN ContinueOnStack = TRUE;
 	*replyreq = 0;
 	while (failcount < 10)
 	{
@@ -1565,7 +1566,7 @@ int vmbus_receivepacket_windbg(void* buffer, UINT32 buflen,UINT32 buflennext, UI
 		{
 			vmbus_input_len += *buffer_actual_len;
 		}
-	}else
+	}else if(!ContinueOnStack)
 	{
 		Print(L"vmbus_receivepacket_windbg!_bittestandreset64 failed, %08x\n", failcount);
 

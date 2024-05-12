@@ -140,7 +140,7 @@ WiresharkSender.cs 文件修改如下行private static VmbusWindbgProtocol gWind
 
 powershell执行
 
-Set-VMComPort -VMName vmname -Path \\.\pipe\pipein -Number 1
+Set-VMComPort -VMName vmname -Path \\.\pipe\windbg -Number 1
 
 hyper-v模式vmbus配置:
 
@@ -245,13 +245,13 @@ pathto\bin\x64\Debug\pipe.exe spy windbg bacnet auto vmname
 
 [edk2](https://github.com/tianocore/edk2/tree/master)
 
-[Windows >Hypervisor Platform API](https://learn.microsoft.com/en-us/virtualization/api/)
+[Windows Hypervisor Platform API](https://learn.microsoft.com/en-us/virtualization/api/)
 
 [VirtualKD-Redux-windbg实现](https://github.com/4d61726b/VirtualKD-Redux/blob/a59549d4597bfe514cb92cc195791ce0d3cc6886/VirtualKD-Redux/Lib/rpcdispatch/kdcomdisp.cpp)
 
 [reactos-windbg实现](https://github.com/mirror/reactos/blob/c6d2b35ffc91e09f50dfb214ea58237509329d6b/reactos/drivers/base/kdcom/kddll.c)
 
-[VmBusDriver)](https://github.com/toddsharpe/MetalOS/blob/master/src/kernel/Drivers/VmBusDriver.cpp)
+[VmBusDriver](https://github.com/toddsharpe/MetalOS/blob/master/src/kernel/Drivers/VmBusDriver.cpp)
 
 [pxe-vmbus](https://github.com/ipxe/ipxe/blob/59f27d69358efc919b50760f3d6dac0b637b5488/src/interface/hyperv/vmbus.c)
 
@@ -262,6 +262,8 @@ pathto\bin\x64\Debug\pipe.exe spy windbg bacnet auto vmname
 [VmBusPipe](https://github.com/awakecoding/VMBusPipe/blob/master/VmBusPipeTest/Main.c)
 
 [Hyper-V socket](https://learn.microsoft.com/en-us/virtualization/hyper-v-on-windows/user-guide/make-integration-service)
+
+[edk2-hv-net项目](https://github.com/cbwang505/windbg-uefi/tree/main/ext)
 
 [作者工具主项目](https://github.com/cbwang505/windbg-uefi)
 

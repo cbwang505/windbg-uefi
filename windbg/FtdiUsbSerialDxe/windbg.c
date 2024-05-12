@@ -578,6 +578,7 @@ CopyRingBuferrMemoryInput(
 	int failcount = 0;
 	int gocount = 0;
 	UINT32 replyreq = 0;
+	BOOLEAN ContinueOnStack=TRUE;
 	CheckRingBuferrMemoryInput();
 	
 	if (NumberOfBytes == 0 && WaiteSeq == 0 && Buffer == NULL)
@@ -657,6 +658,11 @@ CopyRingBuferrMemoryInput(
 			receivelen = vmbus_receivepacket_windbg(bufferreceive, remainlen, 0, &buffer_actual_len, &replyreq);
 			if (receivelen == 0)
 			{
+				if(ContinueOnStack)
+				{
+					continue;
+				}
+			
 				failcount++;
 				Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
 				KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
@@ -706,6 +712,10 @@ CopyRingBuferrMemoryInput(
 			receivelen = vmbus_receivepacket_windbg(bufferreceive, remainlen, buflennext, &buffer_actual_len, &replyreq);
 			if (receivelen == 0)
 			{
+				if (ContinueOnStack)
+				{
+					continue;
+				}
 				failcount++;
 				Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
 				KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
@@ -776,6 +786,10 @@ CopyRingBuferrMemoryInput(
 				receivelen = vmbus_receivepacket_windbg(bufferreceive, remainlen, buflennext, &buffer_actual_len, &replyreq);
 				if (receivelen == 0)
 				{
+					if (ContinueOnStack)
+					{
+						continue;
+					}
 					failcount++;
 					Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
 					KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
@@ -839,6 +853,10 @@ CopyRingBuferrMemoryInput(
 				receivelen = vmbus_receivepacket_windbg(bufferreceive, remainlen, 0, &buffer_actual_len, &replyreq);
 				if (receivelen == 0)
 				{
+					if (ContinueOnStack)
+					{
+						continue;
+					}
 					failcount++;
 					Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
 					KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
@@ -892,6 +910,10 @@ CopyRingBuferrMemoryInput(
 			receivelen = vmbus_receivepacket_windbg(bufferreceive, remainlen, 0, &buffer_actual_len, &replyreq);
 			if (receivelen == 0)
 			{
+				if (ContinueOnStack)
+				{
+					continue;
+				}
 				failcount++;
 				Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
 				KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
@@ -8155,11 +8177,11 @@ SetupDebugAgentEnvironmentWindbg(IN EFI_HANDLE        ImageHandle,
 
 	//__debugbreak();
 
-	Print(L"stall\r\n");
+	/*Print(L"stall\r\n");
 	while (TRUE)
 	{
 		stall(10);
-	}
+	}*/
 	return;
 }
 
