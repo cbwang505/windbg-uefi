@@ -568,6 +568,33 @@ BOOLEAN ChechReplyReqCache(IN  UINT32  PushSeq, IN  UINT32   WaiteSeq)
 
 KDP_STATUS
 NTAPI
+vmbus_receivepacket_timeout(int failcount)
+{
+	int idx = failcount;
+	if (failcount > 2)
+	{
+		Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
+		
+		failcount = idx * failcount;
+		
+
+		idx = 10 * failcount;
+
+		stall(idx);
+		return  KDP_PACKET_CONTINUE;
+		//ResetRingBuferInputToOrigin();
+		//return KDP_PACKET_TIMEOUT;
+	}else
+	{
+		stall(10* failcount);
+		return  KDP_PACKET_CONTINUE;
+	}
+	
+}
+
+
+KDP_STATUS
+NTAPI
 CopyRingBuferrMemoryInput(
 	OUT UINT8* Buffer,
 	IN  UINT32   NumberOfBytes, IN  UINT32   WaiteSeq)
@@ -578,7 +605,7 @@ CopyRingBuferrMemoryInput(
 	int failcount = 0;
 	int gocount = 0;
 	UINT32 replyreq = 0;
-	BOOLEAN ContinueOnStack=TRUE;
+//	BOOLEAN ContinueOnStack=TRUE;
 	CheckRingBuferrMemoryInput();
 	
 	if (NumberOfBytes == 0 && WaiteSeq == 0 && Buffer == NULL)
@@ -661,19 +688,17 @@ CopyRingBuferrMemoryInput(
 				
 			
 				failcount++;
-				if (failcount > 1)
-				{
-					if (ContinueOnStack)
-					{
-						continue;
-					}
-					//ResetRingBuferInputToOrigin();
+				KDP_STATUS proc = vmbus_receivepacket_timeout(failcount);
+				if (proc== KDP_PACKET_TIMEOUT)
+				{					
 					return KDP_PACKET_TIMEOUT;
 				}
-				else
+				else if (proc == KDP_PACKET_CONTINUE)
 				{
-					Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
-					KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
+					
+					continue;
+				}else
+				{
 					continue;
 				}
 
@@ -720,19 +745,18 @@ CopyRingBuferrMemoryInput(
 				
 				failcount++;
 				
-				if (failcount > 1)
+				KDP_STATUS proc = vmbus_receivepacket_timeout(failcount);
+				if (proc == KDP_PACKET_TIMEOUT)
 				{
-					if (ContinueOnStack)
-					{
-						continue;
-					}
-					//ResetRingBuferInputToOrigin();
 					return KDP_PACKET_TIMEOUT;
+				}
+				else if (proc == KDP_PACKET_CONTINUE)
+				{
+
+					continue;
 				}
 				else
 				{
-					Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
-					KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
 					continue;
 				}
 			}
@@ -795,19 +819,18 @@ CopyRingBuferrMemoryInput(
 				{
 					
 					failcount++;
-					if (failcount > 1)
+					KDP_STATUS proc = vmbus_receivepacket_timeout(failcount);
+					if (proc == KDP_PACKET_TIMEOUT)
 					{
-						if (ContinueOnStack)
-						{
-							continue;
-						}
-						//ResetRingBuferInputToOrigin();
 						return KDP_PACKET_TIMEOUT;
+					}
+					else if (proc == KDP_PACKET_CONTINUE)
+					{
+
+						continue;
 					}
 					else
 					{
-						Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
-						KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
 						continue;
 					}
 				}
@@ -863,19 +886,18 @@ CopyRingBuferrMemoryInput(
 				{
 				
 					failcount++;
-					if (failcount > 1)
+					KDP_STATUS proc = vmbus_receivepacket_timeout(failcount);
+					if (proc == KDP_PACKET_TIMEOUT)
 					{
-						if (ContinueOnStack)
-						{
-							continue;
-						}
-						//ResetRingBuferInputToOrigin();
 						return KDP_PACKET_TIMEOUT;
+					}
+					else if (proc == KDP_PACKET_CONTINUE)
+					{
+
+						continue;
 					}
 					else
 					{
-						Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
-						KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
 						continue;
 					}
 				}
@@ -921,19 +943,18 @@ CopyRingBuferrMemoryInput(
 			{
 				
 				failcount++;
-				if (failcount > 1)
+				KDP_STATUS proc = vmbus_receivepacket_timeout(failcount);
+				if (proc == KDP_PACKET_TIMEOUT)
 				{
-					if (ContinueOnStack)
-					{
-						continue;
-					}
-					//ResetRingBuferInputToOrigin();
 					return KDP_PACKET_TIMEOUT;
+				}
+				else if (proc == KDP_PACKET_CONTINUE)
+				{
+
+					continue;
 				}
 				else
 				{
-					Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
-					KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
 					continue;
 				}
 			}
@@ -1955,7 +1976,7 @@ KdpReceiveBuffer(
 			KDP_STATUS ret = CopyRingBuferrMemoryInput((UINT8*)Buffer, (UINTN)Size, 0);
 			if (ret == KDP_PACKET_TIMEOUT)
 			{
-				KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
+				//KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
 			}
 			return ret;
 		}

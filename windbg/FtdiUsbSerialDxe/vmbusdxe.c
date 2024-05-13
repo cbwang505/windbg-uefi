@@ -1314,11 +1314,17 @@ int hv_ringbuffer_read(struct hv_device* pdev,
 	return (int)packetlen;
 }
 BOOLEAN hv_ringbuffer_peek(struct hv_device* pdev) {
-	struct hv_ring_buffer_info* inring_info = &pdev->recv_buf;
-	struct vmpacket_descriptor descstatck;
-	struct vmpacket_descriptor* desc = &descstatck;
-	desc = hv_pkt_iter_first(inring_info, desc);
-	return desc != NULL;
+	u32 hdrlen = sizeof(struct vmpacket_descriptor);
+	struct hv_ring_buffer_info* rbi = &pdev->recv_buf;
+	if (hv_pkt_iter_avail(rbi) < hdrlen)
+	{
+		return FALSE;
+
+	}else
+	{
+		return TRUE;
+	}
+		
 
 }
 
