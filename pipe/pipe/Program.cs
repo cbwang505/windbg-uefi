@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Management;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,7 +11,7 @@ namespace pipe
 {
     class Program
     {
-       
+        
         private static string GuidSelector(string guid) => "SELECT * FROM Msvm_ComputerSystem WHERE Name='" + guid + "'";
         private static string NameSelector(string name) => "SELECT * FROM Msvm_ComputerSystem WHERE ElementName='" + name + "'";
 
@@ -20,9 +21,9 @@ namespace pipe
         public static IMsvm_ComputerSystem GetVMByGuid(string guid, WmiScope scope) =>
             scope.QueryInstances<IMsvm_ComputerSystem>(GuidSelector(guid)).FirstOrDefault();
 
-        private static Guid GetVMguid(string vmname)
+        private static Guid GetVMguid(string vmname, WmiScope scope)
         {
-            WmiScope scope = new WmiScope(@"root\virtualization\v2");
+           
 
             IMsvm_ComputerSystem inst= GetVM(vmname, scope);
             string guid ="{"+ inst.Name+"}";
@@ -144,12 +145,21 @@ namespace pipe
 
                     if (args.Length > 4)
                     {
+                        WmiScope scope = new WmiScope(@"root\virtualization\v2");
                         string vmname = args[4];
-                        Guid vmguid = GetVMguid(vmname);
+                        Guid vmguid = GetVMguid(vmname, scope);
+
+
                         ProcessStartNoWindow(@"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
                             "-exec bypass -Command \"Stop-VM -Name " + vmname + " -TurnOff -Force\"", true);
                         //string vhdxpath = @"F:\hyperv\testuefidbgvhdxv2\Virtual Hard Disks\testuefidbgvhdxv2.vhdx";
-                        string vhdxpath = @"F:\hyperv\testuefidbgvhdxv2\Virtual Hard Disks\testuefidbgvhdxv2.vhdx";
+
+
+                        ManagementObject vmobj= WmiUtilities.GetVirtualMachine(vmname, scope.Scope);
+                        string vhdxpath = WmiUtilities.GetVhdSettingsPath(vmobj);
+
+                        Console.WriteLine("[*]use vhdxpath:=>"+ vhdxpath);
+                      //  string vhdxpath = @"F:\hyperv\testuefidbgvhdxv2\Virtual Hard Disks\testuefidbgvhdxv2.vhdx";
                         ProcessStartNoWindow(@"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
                             "-exec bypass -Command \"Dismount-VHD '"+ vhdxpath + "'\"", true);
                         Thread.Sleep(5000);

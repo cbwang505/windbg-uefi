@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Management;
 using System.Reflection;
@@ -492,6 +493,170 @@ namespace pipe
             ManagementBaseObject outParams = ((ManagementObject)__Instance).InvokeMethod("RequestReplicationStateChangeEx", inParams, null);
             Job = WmiClassImpl.GetProperty<ManagementBaseObject>(outParams, "Job");
             return WmiClassImpl.GetProperty<uint>(outParams, "ReturnValue");
+        }
+    }
+
+    public static class WmiUtilities
+    {
+
+
+        private static ManagementObject
+            GetVmObject(
+                string name,
+                string className,
+                ManagementScope scope)
+        {
+            string vmQueryWql = string.Format(CultureInfo.InvariantCulture,
+                "SELECT * FROM {0} WHERE ElementName=\"{1}\"", className, name);
+
+            SelectQuery vmQuery = new SelectQuery(vmQueryWql);
+
+            using (ManagementObjectSearcher vmSearcher = new ManagementObjectSearcher(scope, vmQuery))
+            using (ManagementObjectCollection vmCollection = vmSearcher.Get())
+            {
+                if (vmCollection.Count == 0)
+                {
+                    throw new ManagementException(string.Format(CultureInfo.CurrentCulture,
+                        "No {0} could be found with name \"{1}\"",
+                        className,
+                        name));
+                }
+
+                //
+                // If multiple virtual machines exist with the requested name, return the first 
+                // one.
+                //
+                ManagementObject vm = GetFirstObjectFromCollection(vmCollection);
+
+                return vm;
+            }
+        }
+
+
+
+
+        public static ManagementObject
+            GetVirtualMachine(
+                string name,
+                ManagementScope scope)
+        {
+            return GetVmObject(name, "Msvm_ComputerSystem", scope);
+        }
+
+
+        /// <summary>
+        /// Gets the virtual machine's configuration settings object.
+        /// </summary>
+        /// <param name="virtualMachine">The virtual machine.</param>
+        /// <returns>The virtual machine's configuration object.</returns>
+        public static ManagementObject
+            GetVirtualMachineSettings(
+                ManagementObject virtualMachine)
+        {
+            using (ManagementObjectCollection settingsCollection =
+                   virtualMachine.GetRelated("Msvm_VirtualSystemSettingData", "Msvm_SettingsDefineState",
+                       null, null, null, null, false, null))
+            {
+                ManagementObject virtualMachineSettings =
+                    GetFirstObjectFromCollection(settingsCollection);
+
+                return virtualMachineSettings;
+            }
+        }
+
+        public static ManagementObject
+            GetFirstObjectFromCollection(
+                ManagementObjectCollection collection)
+        {
+            if (collection.Count == 0)
+            {
+                throw new ArgumentException("The collection contains no objects", "collection");
+            }
+
+            foreach (ManagementObject managementObject in collection)
+            {
+                return managementObject;
+            }
+
+            return null;
+        }
+
+
+        /// <summary>
+        /// Gets the array of Msvm_StorageAllocationSettingData of VHDs associated with the virtual machine.
+        /// </summary>
+        /// <param name="virtualMachine">The virtual machine object.</param>
+        /// <returns>Array of Msvm_StorageAllocationSettingData of VHDs associated with the virtual machine.</returns>
+        public static
+            string
+            GetVhdSettingsPath(
+                ManagementObject virtualMachine)
+        {
+            // Get the virtual machine settings (Msvm_VirtualSystemSettingData object).
+            using (ManagementObject vssd = WmiUtilities.GetVirtualMachineSettings(virtualMachine))
+            {
+                return GetVhdSettingsFromVirtualMachineSettings(vssd);
+            }
+        }
+
+        /// <summary>
+        /// Gets the array of Msvm_StorageAllocationSettingData of VHDs associated with the given virtual
+        /// machine settings.
+        /// </summary>
+        /// <param name="virtualMachineSettings">A ManagementObject representing the settings of a virtual
+        /// machine or snapshot.</param>
+        /// <returns>Array of Msvm_StorageAllocationSettingData of VHDs associated with the given settings.</returns>
+        public static
+            string
+            GetVhdSettingsFromVirtualMachineSettings(
+                ManagementObject virtualMachineSettings)
+        {
+            const UInt16 SASDResourceTypeLogicalDisk = 31;
+
+            string ret = "";
+
+            //
+            // Get all the SASDs (Msvm_StorageAllocationSettingData)
+            // and look for VHDs.
+            //
+            using (ManagementObjectCollection sasdCollection =
+                   virtualMachineSettings.GetRelated("Msvm_StorageAllocationSettingData",
+                       "Msvm_VirtualSystemSettingDataComponent",
+                       null, null, null, null, false, null))
+            {
+                foreach (ManagementObject sasd in sasdCollection)
+                {
+                    if ((UInt16)sasd["ResourceType"] == SASDResourceTypeLogicalDisk)
+                    {
+                        string[] HostResource = sasd.GetPropertyValue("HostResource") as string[];
+                        if (HostResource.Length > 0)
+                        {
+                            string vhdxpath = HostResource.FirstOrDefault().ToString();
+                            ret = vhdxpath;
+                        }
+
+                   
+                        sasd.Dispose();
+                    }
+                }
+            }
+
+
+            return ret;
+        }
+
+
+        public static ManagementObject GetImageManagementService(ManagementScope scope)
+        {
+            // Get from Common utilities for the virtualization samples (V2) - GetVirtualMachineManagementService
+            using (ManagementClass imageManagementServiceClass = new ManagementClass("Msvm_ImageManagementService"))
+            {
+                imageManagementServiceClass.Scope = scope;
+
+                ManagementObject imageManagementService = GetFirstObjectFromCollection(imageManagementServiceClass.GetInstances());
+
+                return imageManagementService;
+            }
         }
     }
 }
