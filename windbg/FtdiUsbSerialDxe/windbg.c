@@ -5,6 +5,7 @@
 #include <Library/BaseMemoryLib.h>
 #include <Library/SerialPortLib.h>
 #include <Library/TimerLib.h>
+#include <Library/ShellLib.h>
 #include "DebugAgent.h"
 //
 // Boot and Runtime Services
@@ -61,7 +62,12 @@ extern UINTN                     mSaveIdtTableSize;
 extern BOOLEAN                   mDebugAgentInitialized;
 extern BOOLEAN                   mSkipBreakpoint;
 
+EFI_SHELL_PROTOCOL* gEfiShellptr = NULL;
 
+UINT64 VmbusSintIdtWindbgEntry = 0;
+
+UINT16 iretqopcode = 0xcf48;
+UINT64 SintVectorRestore = 0;
 UINT32 ExceptionStubHeaderSize = 0x13;
 UINT32 ReplyreqCache[KD_SYMBOLS_MAX] = { 0 };
 typedef struct _KD_SYMBOLS_MAP
@@ -190,6 +196,8 @@ UINT64  FailedOperateMemoryAddressArray[KD_SYMBOLS_MAX] = { 0 };
 
 KD_SYMBOLS_MAP gsymmap[KD_SYMBOLS_MAX] = { 0 };
 static BOOLEAN termconfirmed = FALSE;
+static BOOLEAN reportshellefi = FALSE;
+BOOLEAN SintVectorModify = TRUE;
 
 __declspec(align(VSM_PAGE_SIZE)) UINT8 vmbus_output_page[VSM_PAGE_SIZE_DOUBLE];
 __declspec(align(VSM_PAGE_SIZE)) UINT8 vmbus_input_page[VSM_PAGE_SIZE_DOUBLE];
@@ -229,6 +237,7 @@ EFI_STATUS NTAPI HvVmbusServiceDxeInitialize();
 void NTAPI DumpRsp();
 void NTAPI DumpRet(UINT64 addrsp);
 
+KCONTINUE_STATUS NTAPI KdpSymbolReportSynthetic(PUEFI_SYMBOLS_INFO pSyntheticSymbolInfo);
 VOID
 NTAPI
 KdpZeroMemory(
@@ -274,6 +283,10 @@ KdpPrint(
 	_Out_ PBOOLEAN Handled);
 VOID
 FindAndReportModuleImageInfoWindbg(
+	IN UINTN  AlignSize, PUEFI_SYMBOLS_INFO pSyntheticSymbolInfo
+);
+VOID
+FindAndReportModuleImageInfoShell(
 	IN UINTN  AlignSize, PUEFI_SYMBOLS_INFO pSyntheticSymbolInfo
 );
 BOOLEAN
@@ -489,6 +502,13 @@ CopyRingBuferrMemoryInputSplit(
 BOOLEAN ChechReplyReqCache(IN  UINT32  PushSeq, IN  UINT32   WaiteSeq)
 {
 	BOOLEAN ret = FALSE;
+
+	if (WaiteSeq == 1)
+	{
+		return TRUE;
+	}
+
+
 	if (PushSeq == 0 && WaiteSeq == 0)
 	{
 		return FALSE;
@@ -573,10 +593,10 @@ vmbus_receivepacket_timeout(int failcount)
 	int idx = failcount;
 	if (failcount > 2)
 	{
-		Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT\r\n");
-		
+		Print(L"vmbus_receivepacket_windbg KDP_PACKET_TIMEOUT %08x\r\n", failcount);
+
 		failcount = idx * failcount;
-		
+
 
 		idx = 10 * failcount;
 
@@ -584,12 +604,13 @@ vmbus_receivepacket_timeout(int failcount)
 		return  KDP_PACKET_CONTINUE;
 		//ResetRingBuferInputToOrigin();
 		//return KDP_PACKET_TIMEOUT;
-	}else
+	}
+	else
 	{
-		stall(10* failcount);
+		stall(10 * failcount);
 		return  KDP_PACKET_CONTINUE;
 	}
-	
+
 }
 
 
@@ -599,15 +620,16 @@ CopyRingBuferrMemoryInput(
 	OUT UINT8* Buffer,
 	IN  UINT32   NumberOfBytes, IN  UINT32   WaiteSeq)
 {
+
 	UINT32  ring_buffer_size = VSM_PAGE_SIZE_DOUBLE;
 	UINT64 ring_buffer = (UINT64)(vmbus_input_page);
 	UINT32 receivelen = 0;
 	int failcount = 0;
 	int gocount = 0;
 	UINT32 replyreq = 0;
-//	BOOLEAN ContinueOnStack=TRUE;
+	//	BOOLEAN ContinueOnStack=TRUE;
 	CheckRingBuferrMemoryInput();
-	
+
 	if (NumberOfBytes == 0 && WaiteSeq == 0 && Buffer == NULL)
 	{
 
@@ -652,7 +674,7 @@ CopyRingBuferrMemoryInput(
 			}
 		}
 	}
-	else
+	else if (WaiteSeq != 1)
 	{
 
 		if (ChechReplyReqCache(0, WaiteSeq))
@@ -664,10 +686,10 @@ CopyRingBuferrMemoryInput(
 	}
 	while (TRUE)
 	{
-		
+
 		/*if (gocount > 10)
 		{
-			
+
 			Print(L"vmbus_receivepacket_windbg gocount failed KDP_PACKET_TIMEOUT %08x %08x %08x %08x\r\n", vmbus_input_start, vmbus_input_end, NumberOfBytes, WaiteSeq);
 			//ResetRingBuferInputToOrigin();
 			while (TRUE)
@@ -685,19 +707,20 @@ CopyRingBuferrMemoryInput(
 			receivelen = vmbus_receivepacket_windbg(bufferreceive, remainlen, 0, &buffer_actual_len, &replyreq);
 			if (receivelen == 0)
 			{
-				
-			
+
+
 				failcount++;
 				KDP_STATUS proc = vmbus_receivepacket_timeout(failcount);
-				if (proc== KDP_PACKET_TIMEOUT)
-				{					
+				if (proc == KDP_PACKET_TIMEOUT)
+				{
 					return KDP_PACKET_TIMEOUT;
 				}
 				else if (proc == KDP_PACKET_CONTINUE)
 				{
-					
+
 					continue;
-				}else
+				}
+				else
 				{
 					continue;
 				}
@@ -742,9 +765,9 @@ CopyRingBuferrMemoryInput(
 			receivelen = vmbus_receivepacket_windbg(bufferreceive, remainlen, buflennext, &buffer_actual_len, &replyreq);
 			if (receivelen == 0)
 			{
-				
+
 				failcount++;
-				
+
 				KDP_STATUS proc = vmbus_receivepacket_timeout(failcount);
 				if (proc == KDP_PACKET_TIMEOUT)
 				{
@@ -817,7 +840,7 @@ CopyRingBuferrMemoryInput(
 				receivelen = vmbus_receivepacket_windbg(bufferreceive, remainlen, buflennext, &buffer_actual_len, &replyreq);
 				if (receivelen == 0)
 				{
-					
+
 					failcount++;
 					KDP_STATUS proc = vmbus_receivepacket_timeout(failcount);
 					if (proc == KDP_PACKET_TIMEOUT)
@@ -884,7 +907,7 @@ CopyRingBuferrMemoryInput(
 				receivelen = vmbus_receivepacket_windbg(bufferreceive, remainlen, 0, &buffer_actual_len, &replyreq);
 				if (receivelen == 0)
 				{
-				
+
 					failcount++;
 					KDP_STATUS proc = vmbus_receivepacket_timeout(failcount);
 					if (proc == KDP_PACKET_TIMEOUT)
@@ -941,7 +964,7 @@ CopyRingBuferrMemoryInput(
 			receivelen = vmbus_receivepacket_windbg(bufferreceive, remainlen, 0, &buffer_actual_len, &replyreq);
 			if (receivelen == 0)
 			{
-				
+
 				failcount++;
 				KDP_STATUS proc = vmbus_receivepacket_timeout(failcount);
 				if (proc == KDP_PACKET_TIMEOUT)
@@ -1005,6 +1028,35 @@ CopyRingBuferrMemoryInput(
 	return KDP_PACKET_TIMEOUT;
 
 }
+
+BOOLEAN  vmbus_channel_has_data();
+
+KDP_STATUS
+NTAPI
+CopyRingBuferrMemoryPeek(UINT8* Buffer)
+{
+	KDP_STATUS ret = KDP_PACKET_TIMEOUT;
+	UINT64 ring_buffer = (UINT64)(vmbus_input_page);
+	if (vmbus_input_len >= 1)
+	{
+		hvcopymemory(Buffer, (void*)(ring_buffer + vmbus_input_start), 1);
+		ret = KDP_PACKET_RECEIVED;
+	}
+	else if (vmbus_channel_has_data())
+	{
+
+		CopyRingBuferrMemoryInput(NULL, 0, 1);
+
+		if (vmbus_input_len >= 1)
+		{
+			hvcopymemory(Buffer, (void*)(ring_buffer + vmbus_input_start), 1);
+			ret = KDP_PACKET_RECEIVED;
+		}
+	}
+
+	return ret;
+}
+
 
 VOID
 NTAPI
@@ -1957,7 +2009,29 @@ KdpSysWriteIoSpace(IN ULONG InterfaceType,
 	/* Success! */
 	return STATUS_SUCCESS;
 }
+RETURN_STATUS
+EFIAPI
+BaseDebugLibSerialPortConstructor(
+	VOID
+);
+RETURN_STATUS
+EFIAPI
+BaseSerialPortLib16550(
+	VOID
+);
+EFI_STATUS
+EFIAPI
+KdSerialPortOpt()
+{
+	if (gVmbusWindbgProtocol == NativeCom)
+	{
+		EFI_STATUS Status = BaseSerialPortLib16550();
+		ASSERT_RETURN_ERROR(Status);
+		return  BaseDebugLibSerialPortConstructor();
+	}
 
+	return EFI_SUCCESS;
+}
 
 KDP_STATUS
 NTAPI
@@ -1973,7 +2047,13 @@ KdpReceiveBuffer(
 		}
 		else
 		{
+			if (!VmbusServiceProtocolLoaded)
+			{
+				return KDP_PACKET_RECEIVED;
+			}
 			KDP_STATUS ret = CopyRingBuferrMemoryInput((UINT8*)Buffer, (UINTN)Size, 0);
+
+
 			if (ret == KDP_PACKET_TIMEOUT)
 			{
 				//KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
@@ -2076,39 +2156,42 @@ KDP_STATUS
 NTAPI
 KdpReceiveByteToTerminable()
 {
-	DEBUG_PORT_HANDLE    Handle = GetDebugPortHandle();
 	KDP_STATUS ret = KDP_PACKET_RECEIVED;
-	UCHAR termbyte = 0;
-	int fidack = 0;
-	while (ret == KDP_PACKET_RECEIVED)
+	if (gVmbusWindbgProtocol == NativeCom)
 	{
-		if (DebugPortPollBuffer(Handle)) {
-			ret = KdpReceiveBuffer(&termbyte, 1);
-			if (termbyte == PACKET_TRAILING_BYTE)
-			{
-				ret = KDP_PACKET_RECEIVED;
-				return ret;
-				break;
-			}
-			else if (termbyte == CONTROL_PACKET_LEADER_BYTE)
-			{
-				fidack++;
+		DEBUG_PORT_HANDLE    Handle = GetDebugPortHandle();
 
-			}
-			else if (fidack > 1 && termbyte == 4)
-			{
-				KdpDprintf(L"fidack\r\n");
-				ret = KdpReceiveBuffer(&termbyte, 0xb);
-
-				return ret;
-			}
-		}
-		else
+		UCHAR termbyte = 0;
+		int fidack = 0;
+		while (ret == KDP_PACKET_RECEIVED)
 		{
-			continue;
+			if (DebugPortPollBuffer(Handle)) {
+				ret = KdpReceiveBuffer(&termbyte, 1);
+				if (termbyte == PACKET_TRAILING_BYTE)
+				{
+					ret = KDP_PACKET_RECEIVED;
+					return ret;
+					break;
+				}
+				else if (termbyte == CONTROL_PACKET_LEADER_BYTE)
+				{
+					fidack++;
+
+				}
+				else if (fidack > 1 && termbyte == 4)
+				{
+					KdpDprintf(L"fidack\r\n");
+					ret = KdpReceiveBuffer(&termbyte, 0xb);
+
+					return ret;
+				}
+			}
+			else
+			{
+				continue;
+			}
 		}
 	}
-
 	return ret;
 
 }
@@ -2472,7 +2555,7 @@ RetryReceivePacket:
 			/* Didn't receive data. Packet needs to be resent. */
 			KdpDprintf(L"KdReceivePacket - Didn't receive message header data.\n");
 		}
-		
+
 		/*KdpSendControlPacket(PACKET_TYPE_KD_ACKNOWLEDGE, 0);
 		KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);*/
 		//return KDP_PACKET_RESEND;
@@ -2561,7 +2644,7 @@ RetryReceivePacket:
 				/* Didn't receive data. Start over. */
 				KdpDprintf(L"KdReceivePacket - Didn't receive message data.\n");
 			}
-			
+
 			/*KdpSendControlPacket(PACKET_TYPE_KD_ACKNOWLEDGE, 0);
 			KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);*/
 			//return KDP_PACKET_RESEND;
@@ -2612,7 +2695,7 @@ RetryReceivePacket:
 		{
 			KdpDprintf(L"KdReceivePacket - wrong trailing byte (0x%x), status 0x%x\n", termByte, KdStatus);
 		}
-		
+
 		/*KdpSendControlPacket(PACKET_TYPE_KD_ACKNOWLEDGE, 0);
 		KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);*/
 		//return KDP_PACKET_RESEND;
@@ -2677,7 +2760,7 @@ RetryReceivePacket:
 			KdpDprintf(L"KdReceivePacket - wrong cheksum, got %x, calculated %x\n",
 				PendingPacket->Packet.Checksum, Checksum);
 		}
-		
+
 		/*KdpSendControlPacket(PACKET_TYPE_KD_ACKNOWLEDGE, 0);
 		KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);*/
 		//return KDP_PACKET_RECEIVED;
@@ -3439,7 +3522,9 @@ VOID
 NTAPI
 KdReceivePacketRetryResend()
 {
+
 	KdpReceiveByteToTerminable();
+
 	//KdpSendControlPacket(PACKET_TYPE_KD_ACKNOWLEDGE, 0);
 	KdpSendControlPacket(PACKET_TYPE_KD_RESEND, 0);
 	return;
@@ -3569,11 +3654,11 @@ KdReceivePacket(
 	{
 		*DataLength = 0;
 	}
-	if(!KdContext)
+	if (!KdContext)
 	{
 		KdContext = &KdpContext;
 	}
-	
+
 	//int failedcount = 0;
 	/*if (PacketType == PACKET_TYPE_KD_POLL_BREAKIN)
 	{
@@ -3701,13 +3786,13 @@ KdReceivePacket(
 				return KDP_PACKET_RECEIVED;
 			}
 
-			if(DangleAcknowledgePacket&& PacketType == PACKET_TYPE_KD_ACKNOWLEDGE)
+			if (DangleAcknowledgePacket && PacketType == PACKET_TYPE_KD_ACKNOWLEDGE)
 			{
 				if (PendingPacket->Packet.PacketId == (CurrentPacketId & ~SYNC_PACKET_ID))
 				{
 					/* Remote acknowledges the last packet */
 					CurrentPacketId ^= 1;
-					
+
 				}
 			}
 
@@ -4651,11 +4736,11 @@ KdpCopyMemoryChunks(
 
 BOOLEAN  KdpReadVirtualMemoryMap(PSTRING Data, UINT64 TargetBaseAddress, ULONG Length, PCONTEXT Context)
 {
-	if(TargetBaseAddress==0)
+	if (TargetBaseAddress == 0)
 	{
 		return FALSE;
 	}
-	if (Context!=NULL)
+	if (Context != NULL)
 	{
 		if (LowCheckMemoryAddr(Context->Rsp))
 		{
@@ -5125,6 +5210,10 @@ KdpGetVersion(IN PDBGKD_MANIPULATE_STATE64 State)
 		&Header,
 		NULL,
 		&KdpContext);
+
+
+
+
 	return;
 }BOOLEAN
 NTAPI
@@ -5292,7 +5381,7 @@ KdpReadVirtualMemory(IN PDBGKD_MANIPULATE_STATE64 State,
 		Length = PACKET_MAX_SIZE - sizeof(DBGKD_MANIPULATE_STATE64);
 	}
 
-	if (Length > 0&&KdpReadVirtualMemoryMap(Data, ReadMemory->TargetBaseAddress, Length, Context))
+	if (Length > 0 && KdpReadVirtualMemoryMap(Data, ReadMemory->TargetBaseAddress, Length, Context))
 	{
 		ReadMemory->ActualBytesRead = Length;
 		Data->Length = (USHORT)Length;
@@ -5308,7 +5397,7 @@ KdpReadVirtualMemory(IN PDBGKD_MANIPULATE_STATE64 State,
 	}
 
 
-	if (Length == 0|| ReadMemory->TargetBaseAddress==0 || !UefiMemoryPresent(ReadMemory->TargetBaseAddress, Length) || !HvMemoryReadPresent(ReadMemory->TargetBaseAddress))
+	if (Length == 0 || ReadMemory->TargetBaseAddress == 0 || !UefiMemoryPresent(ReadMemory->TargetBaseAddress, Length) || !HvMemoryReadPresent(ReadMemory->TargetBaseAddress))
 	{
 		if (Length)
 		{
@@ -6441,9 +6530,9 @@ KdpNotSupported(IN PDBGKD_MANIPULATE_STATE64 State)
 }
 
 KCONTINUE_STATUS
-NTAPI KdpSymbolReportSynthetic() {
+NTAPI KdpSymbolReportSynthetic(PUEFI_SYMBOLS_INFO pSyntheticSymbolInfo) {
 	KCONTINUE_STATUS ret = ContinueSuccess;
-	if (ReportSynthetic <= 1 && mSyntheticSymbolInfo[0].SymbolInfo.BaseOfDll != NULL)
+	if (ReportSynthetic <= 2 && pSyntheticSymbolInfo->SymbolInfo.BaseOfDll != NULL)
 	{
 		ReportSynthetic++;
 
@@ -6455,9 +6544,15 @@ NTAPI KdpSymbolReportSynthetic() {
 		{
 			CurrentPacketId = INITIAL_PACKET_ID;
 		}
-
-		hvwcscpy(mSyntheticSymbolInfo[0].SymbolPathBuffer, L"\\SystemRoot\\system32\\ntoskrnl.exe");
+		if (ReportSynthetic == 1)
+		{
+			hvwcscpy(pSyntheticSymbolInfo->SymbolPathBuffer, L"\\SystemRoot\\system32\\ntoskrnl.exe");
+		}
 		ret = ContinueProcessorReselected;
+	}
+	else
+	{
+		return ret;
 	}
 
 	PCONTEXT Context = NULL;
@@ -6465,7 +6560,7 @@ NTAPI KdpSymbolReportSynthetic() {
 	//Data.Length = StrLen(mSyntheticSymbolInfo[0].SymbolPathBuffer);
 	//Data.Length = AsciiStrSize(KdpMessageBuffer);
 	//UnicodeStrToAsciiStrS(mSyntheticSymbolInfo[0].SymbolPathBuffer, KdpMessageBuffer, KD_SYMBOLS_MAX);
-	Data.Length = (UINT16)w2s(mSyntheticSymbolInfo[0].SymbolPathBuffer, KdpMessageBuffer);
+	Data.Length = (UINT16)w2s(pSyntheticSymbolInfo->SymbolPathBuffer, KdpMessageBuffer);
 
 	UINT64 lenchk = AsciiStrSize(KdpMessageBuffer);
 	if (lenchk == 0)
@@ -6477,7 +6572,7 @@ NTAPI KdpSymbolReportSynthetic() {
 	Data.Buffer = KdpMessageBuffer;
 	Data.MaximumLength = Data.Length;
 	KdpSymbol((PSTRING)&Data,
-		(PKD_SYMBOLS_INFO)&mSyntheticSymbolInfo[0].SymbolInfo,
+		(PKD_SYMBOLS_INFO)&pSyntheticSymbolInfo->SymbolInfo,
 		FALSE,
 		0,
 		Context,
@@ -8019,10 +8114,35 @@ void EFIAPI FixGdtrMap()
 }
 NTSTATUS hdlmsgint();
 
+UINT64 NTAPI HvVmbusSintVector();
+
 /**
   Initialize IDT entries to support source level debug.
 
 **/
+VOID NTAPI DumpIdtWindbgEntry(IA32_IDT_GATE_DESCRIPTOR* idtEntryArr)
+{
+	UINT64 hight = ((UINT64)idtEntryArr->Bits.OffsetUpper << 32);
+	UINT64 lower_1 = idtEntryArr->Bits.OffsetHigh << 16;
+	UINT64 lower_2 = idtEntryArr->Bits.OffsetLow;
+	VmbusSintIdtWindbgEntry = hight + lower_1 + lower_2;
+
+	Print(L"DumpIdtWindbgEntry %p \r\n", VmbusSintIdtWindbgEntry);
+
+	return;
+
+}
+
+VOID*
+GetExceptionHandlerInIdtEntry(
+	IN UINTN  ExceptionNum
+);
+VOID
+SetExceptionHandlerInIdtEntry(
+	IN UINTN  ExceptionNum,
+	IN VOID* ExceptionHandler
+);
+
 VOID NTAPI
 InitializeDebugIdtWindbg(
 	VOID
@@ -8062,11 +8182,43 @@ InitializeDebugIdtWindbg(
 
 
 
-	InterruptHandler = (UINTN)&hdlmsgint;
+	//
+
+
+
+	VmbusSintIdtWindbgEntry = (UINT64)GetExceptionHandlerInIdtEntry(SintVectorRestore);
+	Print(L"SintVector %p %p %p\r\n", SintVectorRestore, HYPERVISOR_CALLBACK_VECTOR, VmbusSintIdtWindbgEntry);
+
+	//*(UINT16*)VmbusSintIdtWindbgEntry = iretqopcode;
+
+
+		/*IA32_IDT_GATE_DESCRIPTOR* idtEntryArr = &IdtEntry[SintVector];
+		DumpIdtWindbgEntry(idtEntryArr);*/
+
+	if (SintVectorModify)
+	{
+		InterruptHandler = (UINTN)&hdlmsgint;
+		SetExceptionHandlerInIdtEntry(HYPERVISOR_CALLBACK_VECTOR, (VOID*)InterruptHandler);
+	}
+	/*
 	IdtEntry[HYPERVISOR_CALLBACK_VECTOR].Bits.OffsetLow = (UINT16)(UINTN)InterruptHandler;
 	IdtEntry[HYPERVISOR_CALLBACK_VECTOR].Bits.OffsetHigh = (UINT16)((UINTN)InterruptHandler >> 16);
 	IdtEntry[HYPERVISOR_CALLBACK_VECTOR].Bits.Selector = CodeSegment;
-	IdtEntry[HYPERVISOR_CALLBACK_VECTOR].Bits.GateType = IA32_IDT_GATE_TYPE_INTERRUPT_32;
+	IdtEntry[HYPERVISOR_CALLBACK_VECTOR].Bits.GateType = IA32_IDT_GATE_TYPE_INTERRUPT_32;*/
+
+	/*
+
+	Print(L"SintVector %p \r\n", SintVector);
+	IA32_IDT_GATE_DESCRIPTOR* idtEntryArr = &IdtEntry[SintVector];
+	DumpIdtWindbgEntry(idtEntryArr);
+
+	IdtEntry[SintVector].Bits.OffsetLow = (UINT16)(UINTN)InterruptHandler;
+	IdtEntry[SintVector].Bits.OffsetHigh = (UINT16)((UINTN)InterruptHandler >> 16);
+	IdtEntry[SintVector].Bits.Selector = CodeSegment;
+	IdtEntry[SintVector].Bits.GateType = IA32_IDT_GATE_TYPE_INTERRUPT_32;*/
+
+
+
 
 	//
 	// If the CPU supports Debug Extensions(CPUID:01 EDX:BIT2), then
@@ -8079,6 +8231,9 @@ InitializeDebugIdtWindbg(
 	return;
 }
 NTSTATUS NTAPI HvSYNICVtl0();
+NTSTATUS NTAPI HvSYNICVtl0New();
+UINT64 NTAPI HvVmbusSintVectorRestore(UINT64 newVector);
+
 
 /**
   Worker function to set up Debug Agent environment.
@@ -8133,8 +8288,11 @@ SetupDebugAgentEnvironmentWindbg(IN EFI_HANDLE        ImageHandle,
 	//
 	// Initialize the IDT table entries to support source level debug.
 	//
+	SintVectorRestore = HvVmbusSintVector();
+
+	HvSYNICVtl0New();
 	InitializeDebugIdtWindbg();
-	HvSYNICVtl0();
+
 	//
 	// If mMailboxPointer is not set before, set it
 	//
@@ -8174,6 +8332,8 @@ SetupDebugAgentEnvironmentWindbg(IN EFI_HANDLE        ImageHandle,
 	{
 		DEBUG((DEBUG_INFO, "SaveAndSetDebugTimerInterrupt\r\n"));
 	}
+
+
 	// Enable interrupt to receive Debug Timer interrupt
 	//
 
@@ -8190,6 +8350,7 @@ SetupDebugAgentEnvironmentWindbg(IN EFI_HANDLE        ImageHandle,
 	}
 
 	KdInitSystem(ImageHandle, SystemTable, FALSE, NULL);
+
 
 
 	if (Mailbox == NULL) {
@@ -8209,6 +8370,15 @@ SetupDebugAgentEnvironmentWindbg(IN EFI_HANDLE        ImageHandle,
 		}
 	}
 
+	if (reportshellefi)
+	{
+		if (!mSyntheticSymbolInfo[1].SymbolInfo.BaseOfDll)
+		{
+			PUEFI_SYMBOLS_INFO pSyntheticSymbolInfo1 = &mSyntheticSymbolInfo[1];
+			FindAndReportModuleImageInfoShell(SIZE_4KB, pSyntheticSymbolInfo1);
+			KdpSymbolReportSynthetic(pSyntheticSymbolInfo1);
+		}
+	}
 	//__debugbreak();
 
 	/*Print(L"stall\r\n");
@@ -8233,6 +8403,7 @@ BOOLEAN EFIAPI KdInitSystem(IN EFI_HANDLE   ImageHandle,
 
 	KdpZeroMemory(mSyntheticSymbolInfo, sizeof(mSyntheticSymbolInfo));
 	PUEFI_SYMBOLS_INFO pSyntheticSymbolInfo = &mSyntheticSymbolInfo[0];
+
 	KdpContext.KdpDefaultRetries = 20;
 	KdpContext.KdpControlCPending = FALSE;
 	KdpContext.KdpControlReturn = FALSE;
@@ -8244,7 +8415,7 @@ BOOLEAN EFIAPI KdInitSystem(IN EFI_HANDLE   ImageHandle,
 	}
 
 	KdpSendControlPacket(PACKET_TYPE_KD_RESET, 0);
-	
+
 
 	//
 
@@ -8262,22 +8433,25 @@ BOOLEAN EFIAPI KdInitSystem(IN EFI_HANDLE   ImageHandle,
 	{
 		if (!EFI_ERROR(Status))
 		{
-			KdpDprintf(L"KdInitSystem Success\n");
+			KdpDprintf(L"KdInitSystem Success\r\n");
 
 		}
 		else {
-			KdpDprintf(L"KdInitSystem Failed\n");
+			KdpDprintf(L"KdInitSystem Failed\r\n");
 		}
 	}
 
 	FindAndReportModuleImageInfoWindbg(SIZE_4KB, pSyntheticSymbolInfo);
 
+
 	if (ReportSynthetic == 0)
 	{
 
-		KdpSymbolReportSynthetic();
+		KdpSymbolReportSynthetic(pSyntheticSymbolInfo);
+
+		stall(10);
 		//CurrentPacketId ^= 1;
-		KdpDprintf(L"KdInitSystem Success\n");
+		KdpDprintf(L"KdInitSystem Success\r\n");
 		VmbusKdInitSystemLoaded = TRUE;
 		return TRUE;
 	}
@@ -8626,6 +8800,64 @@ FindAndReportModuleImageInfoWindbg(
 	}
 	return;
 }
+
+
+
+/**
+  Find and report module image info to HOST.
+
+  @param[in] AlignSize      Image aligned size.
+
+**/
+VOID
+FindAndReportModuleImageInfoShell(
+	IN UINTN  AlignSize, PUEFI_SYMBOLS_INFO pSyntheticSymbolInfo
+)
+{
+	UINT64                         Pe32Data;
+	PE_COFF_LOADER_IMAGE_CONTEXT  ImageContext;
+
+	EFI_GUID gEfiShellProtocolGuidstack = EFI_SHELL_PROTOCOL_GUID;
+	EFI_STATUS efiStatus = gBS->LocateProtocol(&gEfiShellProtocolGuidstack, NULL, &gEfiShellptr);
+	if (EFI_ERROR(efiStatus))
+	{
+		Print(L"Failed to locate our driver shell: %lx\n", efiStatus);
+		return;
+	}
+
+	UINT64 shellfn = (UINT64)gEfiShellptr->Execute;
+
+	//
+	// Find Image Base
+	//
+	Pe32Data = PeCoffSearchImageBaseWindbg((UINTN)shellfn);
+	if (Pe32Data != 0) {
+
+		ImageContext.ImageAddress = Pe32Data;
+
+		WCHAR* pdbpath = GetModuleName((UINT8*)ImageContext.ImageAddress, &pSyntheticSymbolInfo->SymbolInfo.CheckSum, &pSyntheticSymbolInfo->SymbolInfo.SizeOfImage);
+		if (pdbpath)
+		{
+			//KdpDprintf(L"%s\r\n", pdbpath);
+			if (ForceConsoleOutput)
+			{
+				DEBUG((DEBUG_INFO, "%s\r\n", pdbpath));
+
+			}
+
+			hvwcscpy(pSyntheticSymbolInfo->SymbolPathBuffer, pdbpath);
+		}
+		else
+		{
+			hvwcscpy(pSyntheticSymbolInfo->SymbolPathBuffer, L"Shell.efi");
+		}
+		pSyntheticSymbolInfo->SymbolInfo.BaseOfDll = (PVOID)ImageContext.ImageAddress;
+		pSyntheticSymbolInfo->SymbolInfo.ProcessId = GetProcessorIndex();
+
+	}
+	return;
+}
+
 
 /**
   Trigger one software interrupt to debug agent to handle it.
@@ -11353,6 +11585,9 @@ InterruptProcess(
 	UINTN                         SavedEip = 0;
 	BOOLEAN                       BreakReceived = FALSE;
 	DEBUG_CPU_CONTEXT* CpuContextSave = CpuContext;
+
+
+
 	if (MultiProcessorDebugSupport()) {
 		//
 		// If RUN command is executing, wait for it done.
@@ -11366,6 +11601,10 @@ InterruptProcess(
 		KdpDprintf(L"sig %p %p \r\n", CpuContext->Sig0, CpuContext->Sig1);
 	}
 	UINT8 BreakCause = GetBreakCause(Vector, CpuContext);
+
+
+
+
 	if (Vector != DEBUG_TIMER_VECTOR && Vector != DEBUG_INT3_VECTOR)
 	{
 		Print(L"InterruptProcess %08x %08x %p %p\r\n", Vector, BreakCause, CpuContext->Eip, mSyntheticSymbolInfo[0].SymbolInfo.BaseOfDll);
@@ -11478,9 +11717,24 @@ InterruptProcess(
 	case DEBUG_TIMER_VECTOR:
 
 	{
-		SendApicEoi();
 
+
+		SendApicEoi();
 		HvVmbusTimer();
+
+		//KdpDprintf(L"UefiMain!HvVmbusTimer\r\n");
+		if (mDebugAgentInitialized)
+		{
+			UINT8 PacketType = 0;
+			if (CopyRingBuferrMemoryPeek(&PacketType) == KDP_PACKET_RECEIVED) {
+
+				if (PacketType == BREAKIN_PACKET_BYTE)
+				{
+					__debugbreak();
+				}
+
+			}
+		}
 		break;
 	}
 	default: {
@@ -12011,7 +12265,7 @@ InitializeDebugAgentWindbg(IN EFI_HANDLE        ImageHandle,
 	switch (InitFlag) {
 	case DEBUG_AGENT_INIT_DXE_LOAD:
 
-
+		mDebugAgentInitialized = FALSE;
 		//
 		// Check if Debug Agent has been initialized before
 		//
@@ -12063,7 +12317,7 @@ InitializeDebugAgentWindbg(IN EFI_HANDLE        ImageHandle,
 		// For DEBUG_AGENT_INIT_S3, needn't to install configuration table and EFI Serial IO protocol
 		// For DEBUG_AGENT_INIT_DXE_CORE, InternalConstructorWorker() will invoked in Constructor()
 		//
-		InternalConstructorWorker();
+		//InternalConstructorWorker();
 
 		if (ForceConsoleOutput)
 		{
@@ -12105,8 +12359,13 @@ InitializeDebugAgentWindbg(IN EFI_HANDLE        ImageHandle,
 
 
 
-		DisableApicTimerInterrupt();
-		__debugbreak();
+		/*DisableApicTimerInterrupt();
+
+		__debugbreak();*/
+
+
+		//HvVmbusSintVectorRestore(SintVectorRestore);
+
 		break;
 
 	case DEBUG_AGENT_INIT_DXE_UNLOAD:

@@ -353,7 +353,7 @@ namespace Wireshark
         public static Mutex nodelockclt = nodelocksvr;
         bool IsConnected = false;
         bool VmbusConnected = false;
-        public static int windbgfirstresetrevc = 2;
+        public static int windbgfirstresetrevc = 1;
         public static UInt32 gseqnum = 0x5686;
         public static UInt32 gseqnumchk = 0;
         string pipe_name;
@@ -378,6 +378,8 @@ namespace Wireshark
             0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0xaa
         };
+        public static byte BREAKIN_PACKET_BYTE = 0x62;
+
 
         public static volatile ConcurrentDictionary<UInt32,VmbusWriteInfo> FeedbackSListeqList = new ConcurrentDictionary<UInt32, VmbusWriteInfo>();
         private static byte[] readbufasync = System.Linq.Enumerable.Repeat((byte)0, 0x100).ToArray();
@@ -497,7 +499,7 @@ namespace Wireshark
                 //timer =  new System.Threading.Timer(Timer_Elapsed, null, TimeSpan.FromSeconds(160), TimeSpan.FromSeconds(0));
 
 
-                if (gWindbgProtocol == VmbusWindbgProtocol.NativeCom)
+               if (gWindbgProtocol == VmbusWindbgProtocol.NativeCom)
                 {
                     Thread th1 = new Thread(PipeRead);
                     th1.IsBackground = true;
@@ -1131,16 +1133,22 @@ namespace Wireshark
 
 
                 int lenread = pipeClient.EndRead(ar);
-                List<byte> oueBytes = new List<byte>();
-                //Console.WriteLine("pipeClient EndRead " + lenread);
-
-                foreach (byte b in outbufClient.Take(lenread))
+                Console.WriteLine("pipeClient EndRead " + lenread);
+                if (gWindbgProtocol == VmbusWindbgProtocol.NativeCom)
                 {
-                    oueBytes.Add(b);
+                    List<byte> oueBytes = new List<byte>();
+                    
+
+                    foreach (byte b in outbufClient.Take(lenread))
+                    {
+                        oueBytes.Add(b);
+                    }
+
+                    SendToWireshark(oueBytes.ToArray(), false);
+                    Array.Copy(outbufClient, 0, inbufServer, 0, lenread);
+                    pipeServer.BeginWrite(inbufServer, 0, lenread, pipeClientBeginWriteAsyncCallback, lenread);
                 }
-                SendToWireshark(oueBytes.ToArray(), false);
-                Array.Copy(outbufClient, 0, inbufServer, 0, lenread);
-                pipeServer.BeginWrite(inbufServer, 0, lenread, pipeClientBeginWriteAsyncCallback, lenread);
+
                 pipeClient.BeginRead(outbufClient, 0, DefaultBufferLength, pipeClientBeginReadAsyncCallback, null);
 
             }
@@ -1336,6 +1344,7 @@ namespace Wireshark
 
         private void VmbusWriteQueue()
         {
+            bool firstresetskip = true;
             int pcklen = Marshal.SizeOf(typeof(KD_PACKET));
             List<byte> stackbuf = new List<byte>();
             while (true)
@@ -1346,11 +1355,26 @@ namespace Wireshark
                     stackbuf.AddRange(stackbuftmp);
 
                 }
-                else
+                else if(stackbuf.Count==0)
                 {
                     Kernel32.SleepEx(10, true);
                     continue;
                 }
+
+                if (stackbuf.Count >= 1)
+                {
+
+                    if (stackbuf.First() == BREAKIN_PACKET_BYTE)
+                    {
+                        Console.WriteLine("PACKET_TYPE_KD_POLL_BREAKIN");
+
+                        VmbusWriteFromRawpart(stackbuf.ToArray());
+
+                        stackbuf.Clear();
+                        continue;
+                    }
+                }
+
                 bool haspck = false;
                 int stacklen = stackbuf.Count;
                 List<KD_PACKET_ALL> stackpacket = new List<KD_PACKET_ALL>();
@@ -1365,17 +1389,15 @@ namespace Wireshark
                             if (pck.ByteCount == 0)
                             {
                                
-                                if (windbgfirstresetrevc>0)
+                                if (pck.PacketType == 6 & firstresetskip)
                                 {
-                                    if (pck.PacketType == 6)
-                                    {
-                                        windbgfirstresetrevc--;
-                                        stackbuf.Clear();
-                                        break;
-                                    }
+                                    stackbuf.Clear();
+                                    break;
+
                                 }
                                 else
                                 {
+                                    firstresetskip = false;
                                     stackpacket.Add(new KD_PACKET_ALL(pck, new byte[] { }));
                                 }
 

@@ -10,6 +10,8 @@
 #include <Library/DebugLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiDriverEntryPoint.h>
+#include <Library/UefiLib.h>
+
 
 GLOBAL_REMOVE_IF_UNREFERENCED GUID gEfiCallerIdGuid = {0x9727502C, 0x034E, 0x472b, {0x8E, 0x1B, 0x67, 0xBB, 0x28, 0xC6, 0xCF, 0xDB}};
 
@@ -463,6 +465,11 @@ EFIAPI
 DebugAgentDxeUnload(
 	IN EFI_HANDLE  ImageHandle
 );
+
+EFI_STATUS
+EFIAPI
+KdSerialPortOpt();
+
 VOID
 EFIAPI
 ProcessLibraryConstructorList (
@@ -472,11 +479,12 @@ ProcessLibraryConstructorList (
 {
   EFI_STATUS  Status;
 
-  Status = BaseSerialPortLib16550 ();
-  ASSERT_RETURN_ERROR (Status);
+ // Status = BaseSerialPortLib16550 ();
+ // ASSERT_RETURN_ERROR (Status);
 
-  Status = BaseDebugLibSerialPortConstructor ();
-  ASSERT_RETURN_ERROR (Status);
+  //Status = BaseDebugLibSerialPortConstructor();
+  Status = KdSerialPortOpt();
+  ASSERT_RETURN_ERROR(Status);
 
   Status = UefiBootServicesTableLibConstructor (ImageHandle, SystemTable);
   ASSERT_EFI_ERROR (Status);
@@ -490,8 +498,8 @@ ProcessLibraryConstructorList (
   Status = HobLibConstructor (ImageHandle, SystemTable);
   ASSERT_EFI_ERROR (Status);
 
-  Status = DxeDebugAgentLibConstructor (ImageHandle, SystemTable);
-  ASSERT_EFI_ERROR (Status);
+  /*Status = DxeDebugAgentLibConstructor (ImageHandle, SystemTable);
+  ASSERT_EFI_ERROR (Status);*/
 
 }
 
@@ -529,6 +537,8 @@ ExitDriver (
   )
 {
   if (EFI_ERROR (Status)) {
+
+	Print(L"ExitDriver\r\n");
     ProcessLibraryDestructorList (gImageHandle, gST);
 	gBS->Exit(gImageHandle, Status, 0, NULL);
   }

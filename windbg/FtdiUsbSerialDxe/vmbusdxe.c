@@ -36,23 +36,28 @@
 
 static BOOLEAN SyncFeedBack=FALSE;
 extern BOOLEAN VmbusServiceProtocolLoaded;
+extern BOOLEAN SintVectorModify;
 extern UINT8 vmbus_output_page[];
 extern UINT8 vmbus_input_page[];
 extern volatile UINT32 vmbus_input_len ;
 UINT64 signalflag = 0;
 UINT64 signalvalue = 0;
+UINT32 gmessageConnectionId = 0;
 extern volatile u32 requestid = 1;
 volatile u32 feedbackseq = 0;
-
-__declspec(align(VSM_PAGE_SIZE)) UINT8 synic_message_page[VSM_PAGE_SIZE];
-__declspec(align(VSM_PAGE_SIZE)) UINT8 synic_event_page[VSM_PAGE_SIZE];
+static u8 vmbus_sint = 5;
+//vmbus_sint = VMBUS_MESSAGE_SINT;
+//__declspec(align(VSM_PAGE_SIZE)) UINT8 synic_message_page[VSM_PAGE_SIZE];
+//__declspec(align(VSM_PAGE_SIZE)) UINT8 synic_event_page[VSM_PAGE_SIZE];
 __declspec(align(VSM_PAGE_SIZE)) UINT8 int_page[VSM_PAGE_SIZE];
 __declspec(align(VSM_PAGE_SIZE)) UINT8 monitor_pages0[VSM_PAGE_SIZE];
 __declspec(align(VSM_PAGE_SIZE)) UINT8 monitor_pages1[VSM_PAGE_SIZE];
 
 __declspec(align(VSM_PAGE_SIZE)) UINT8 vmbus_aux_page[VSM_PAGE_SIZE_DOUBLE];
-//UINT64 synic_message_page = 0;
-UINT64 synic_message_page_val = 0;
+
+UINT64 synic_message_page = 0;
+UINT64 synic_event_page = 0;
+
 NTSTATUS NTAPI HvHvCallPostMessageVtl0(void* buffer, UINT32 buflen);
 NTSTATUS NTAPI HvHvSignalEvent(UINT32 evt);
 void dumpbuf(void* buf, int len);
@@ -116,78 +121,92 @@ void NTAPI InitGlobalHv();
 int hv_ringbuffer_read(struct hv_device* pdev,
 	void* buffer, u32 buflen, u32* buffer_actual_len,
 	u64* requestid, BOOLEAN raw, BOOLEAN signal);
-void NTAPI ProcessResponseChannel()
+
+BOOLEAN NTAPI ProcessResponseChannel()
 {
-	struct vmbus_channel_message_header* hdr = (struct vmbus_channel_message_header*)((UINT64)synic_message_page + 0x210);
+	BOOLEAN ret = FALSE;
+	BOOLEAN vmbus_channel_request_offer_response_show = FALSE;
+	struct vmbus_channel_message_header* hdr = (struct vmbus_channel_message_header*)(((PHV_MESSAGE)synic_message_page + vmbus_sint)->Payload);
 	if (hdr->msgtype == CHANNELMSG_INVALID)
 	{
-		return;
+		ret= FALSE;
 	}
 	if (hdr->msgtype == CHANNELMSG_OPENCHANNEL_RESULT)
 	{
 		struct vmbus_channel_open_result* result = (struct vmbus_channel_open_result*)(hdr);
-		KdpDprintf(L"vmbus_channel_open_result!msgtype:=> %08x,child_relid:=> %08x,openid:=> %08x,status:=> %08x\n", result->header.msgtype, result->child_relid, result->openid, result->status);
+		KdpDprintf(L"vmbus_channel_open_result!msgtype:=> %08x,child_relid:=> %08x,openid:=> %08x,status:=> %08x\r\n", result->header.msgtype, result->child_relid, result->openid, result->status);
 		if (vmbus_request_open_event)
 		{
 			gBS->SignalEvent(vmbus_request_open_event);
 		}
+		ret = TRUE;
 	}
 	else if (hdr->msgtype == CHANNELMSG_OFFERCHANNEL)
 	{
 		struct vmbus_channel_offer_channel* offer = (struct vmbus_channel_offer_channel*)(hdr);
 		//UINT32 fakeid = *(UINT32*)((UINT64)synic_message_page + 0x210 + 0xb8);
-		GUID guid = offer->offer.if_type;
-		KdpDprintf(L"vmbus_channel_request_offer_response!msgtype:=>%08x,child_relid:=>%08x\n", offer->header.msgtype, offer->child_relid);
-		KdpDprintf(L"if_type:=> %{%08X-%04X-%04x-%02X%02X-%02X%02X%02X%02X%02X%02X}\n", guid.Data1
-			, guid.Data2
-			, guid.Data3
-			, guid.Data4[0], guid.Data4[1]
-			, guid.Data4[2], guid.Data4[3], guid.Data4[4], guid.Data4[5]
-			, guid.Data4[6], guid.Data4[7]);
-
-		guid = offer->offer.if_instance;
-		KdpDprintf(L"if_instance:=> %{%08X-%04X-%04x-%02X%02X-%02X%02X%02X%02X%02X%02X}\n", guid.Data1
-			, guid.Data2
-			, guid.Data3
-			, guid.Data4[0], guid.Data4[1]
-			, guid.Data4[2], guid.Data4[3], guid.Data4[4], guid.Data4[5]
-			, guid.Data4[6], guid.Data4[7]);
+		
 		PKD_CHANNEL_OFFER offerchannel = AllocateZeroPool(sizeof(KD_CHANNEL_OFFER));
 		hvcopymemory(&offerchannel->offer, offer, sizeof(struct vmbus_channel_offer_channel));
 		InsertTailListUefi(&pPengdingofferchannel->List, &offerchannel->List);
-
 		if (CompareGuid(&offer->offer.if_type, &pipeifguid) == TRUE)
 		{
+			
 			if (vmbus_request_offers_event)
 			{
-				gBS->SignalEvent(vmbus_request_offers_event);
+				gBS->SignalEvent(vmbus_request_offers_event);			
+				
 			}
+			vmbus_channel_request_offer_response_show = TRUE;
 		}
+		if (vmbus_channel_request_offer_response_show)
+		{
+			GUID guid = offer->offer.if_type;
+			KdpDprintf(L"vmbus_channel_request_offer_response!msgtype:=>%08x,child_relid:=>%08x\r\n", offer->header.msgtype, offer->child_relid);
+			KdpDprintf(L"if_type:=> %{%08X-%04X-%04x-%02X%02X-%02X%02X%02X%02X%02X%02X}\n", guid.Data1
+				, guid.Data2
+				, guid.Data3
+				, guid.Data4[0], guid.Data4[1]
+				, guid.Data4[2], guid.Data4[3], guid.Data4[4], guid.Data4[5]
+				, guid.Data4[6], guid.Data4[7]);
 
+			guid = offer->offer.if_instance;
+			KdpDprintf(L"if_instance:=> %{%08X-%04X-%04x-%02X%02X-%02X%02X%02X%02X%02X%02X}\r\n", guid.Data1
+				, guid.Data2
+				, guid.Data3
+				, guid.Data4[0], guid.Data4[1]
+				, guid.Data4[2], guid.Data4[3], guid.Data4[4], guid.Data4[5]
+				, guid.Data4[6], guid.Data4[7]);
+
+		}
+		ret = TRUE;
 	}
 	else if (hdr->msgtype == CHANNELMSG_GPADL_CREATED)
 	{
 		struct vmbus_channel_gpadl_created* resp = (struct vmbus_channel_gpadl_created*)(hdr);
-		KdpDprintf(L"HvVmbusOpen_response!msgtype:=> %08x,child_relid:=> %08x,gpadle:=> %08x,creation_status:=> %08x\n", resp->header.msgtype, resp->child_relid, resp->gpadl, resp->creation_status);
+		KdpDprintf(L"HvVmbusOpen_response!msgtype:=> %08x,child_relid:=> %08x,gpadle:=> %08x,creation_status:=> %08x\r\n", resp->header.msgtype, resp->child_relid, resp->gpadl, resp->creation_status);
 		nowgpadl = resp->gpadl;
 
 		if (vmbus_gpdl_event)
 		{
 			gBS->SignalEvent(vmbus_gpdl_event);
 		}
+		ret = TRUE;
 	}
 	else if (hdr->msgtype == CHANNELMSG_VERSION_RESPONSE)
 	{
 		struct vmbus_channel_version_response* resp = (struct vmbus_channel_version_response*)(hdr);
-		KdpDprintf(L"vmbus_channel_version_response!msgtype:=> %08x,version_supported:=> %08x\n", resp->header.msgtype, resp->version_supported);
+		KdpDprintf(L"vmbus_channel_version_response!msgtype:=> %08x,version_supported:=> %08x,messageConnectionId:=> %08x\r\n", resp->header.msgtype, resp->version_supported, resp->messageConnectionId);
+		gmessageConnectionId = resp->messageConnectionId;
 		if (vmbus_negotiate_event)
 		{
 			gBS->SignalEvent(vmbus_negotiate_event);
 
 		}
+		ret = TRUE;
 	}
-
-	return;
+	hdr->msgtype = 0;
+	return ret;
 
 }
 
@@ -197,19 +216,29 @@ void NTAPI ProcessSynicChannel()
 	u8 buf[0x100] = { 0 };
 	u64 requestid = 1;
 	u32 buffer_actual_len = 0;*/
-	PHV_SYNIC_EVENT_FLAGS  synic_event_page_sint = (PHV_SYNIC_EVENT_FLAGS)synic_event_page + VMBUS_MESSAGE_SINT;
-
-	if (_bittest64((__int64 const*)synic_event_page_sint, gpipedev.child_relid))
+	if (synic_event_page)
 	{
-		//hv_ringbuffer_read(&gpipedev, (void*)buf, 0x100, &buffer_actual_len, &requestid, TRUE, FALSE);
-		gpipedev.channel_recv_signal = 1;
+		if (gpipedev.child_relid)
+		{
+			PHV_SYNIC_EVENT_FLAGS  synic_event_page_sint = (PHV_SYNIC_EVENT_FLAGS)synic_event_page + vmbus_sint;
+
+			if (_bittest64((__int64 const*)synic_event_page_sint, gpipedev.child_relid))
+			{
+				//hv_ringbuffer_read(&gpipedev, (void*)buf, 0x100, &buffer_actual_len, &requestid, TRUE, FALSE);
+				gpipedev.channel_recv_signal = 1;
+			}
+		}
 	}
 	return;
 }
-
+VOID
+EFIAPI
+SendApicEoi(
+	VOID
+);
 void  NTAPI ConfigPendingMessageSlot()
 {
-	PHV_MESSAGE  bufmssg = (PHV_MESSAGE)((UINT64)synic_message_page + 0x200);
+	PHV_MESSAGE  bufmssg = (PHV_MESSAGE)synic_message_page+vmbus_sint;
 	bufmssg->Header.MessageType = 0;
 	signalflag = 0;
 
@@ -220,10 +249,10 @@ void  NTAPI ConfigPendingMessageSlot()
 
 		//auto  eoi
 		__writemsr(HvSyntheticMsrEom, 0);
-		//SendApicEoi();
+		//
 
 	}
-
+	//SendApicEoi();
 	return;
 
 }
@@ -232,7 +261,7 @@ BOOLEAN NTAPI ProcessPendingMessageSlot()
 	BOOLEAN ret = TRUE;
 	int failecount = 0;
 	signalflag = 0;
-	PHV_MESSAGE  bufmssg = (PHV_MESSAGE)((UINT64)synic_message_page + 0x200);
+	PHV_MESSAGE  bufmssg = (PHV_MESSAGE)synic_message_page+vmbus_sint;
 
 	while (signalflag == 0)
 	{
@@ -269,6 +298,17 @@ msgeom:
 
 	return ret;
 }
+
+
+UINT64 NTAPI HvVmbusSintVector()
+{
+	HV_SYNIC_SINT shared_sint = { 0 };
+	shared_sint.AsUINT64 = __readmsr(HV_X64_MSR_SINT0 + VMBUS_MESSAGE_SINT);
+
+	return shared_sint.Vector ;
+}
+
+
 NTSTATUS NTAPI HvSYNICVtl0()
 {
 	NTSTATUS ret = STATUS_SUCCESS;
@@ -276,18 +316,35 @@ NTSTATUS NTAPI HvSYNICVtl0()
 	HV_SYNIC_SIMP SimpVal = { 0 };
 	HV_SYNIC_SIEFP SiefpVal = { 0 };
 	HV_SYNIC_SCONTROL SControlVal = { 0 };
+
+	HV_SYNIC_SINT shared_sint = { 0 };
+
+	//vmbus_sint = VMBUS_MESSAGE_SINT;
+
+
 	SimpVal.AsUINT64 = __readmsr(HvSyntheticMsrSimp);
 
-	KdpDprintf(L"UefiMain!HvSyntheticMsrSimp  regvalue:=> %016llx!\n", SimpVal);
+	KdpDprintf(L"UefiMain!HvSyntheticMsrSimp  regvalue:=> %016llx!\n", SimpVal.AsUINT64);
 
 	SiefpVal.AsUINT64 = __readmsr(HvSyntheticMsrSiefp);
 
-	KdpDprintf(L"UefiMain!HvSyntheticMsrSiefp  regvalue:=> %016llx!\n", SiefpVal);
-	//synic_message_page=AllocateAlignedPages(1, VSM_PAGE_SIZE);
+	KdpDprintf(L"UefiMain!HvSyntheticMsrSiefp  regvalue:=> %016llx!\n", SiefpVal.AsUINT64);
+
+	shared_sint.AsUINT64 = __readmsr(HV_X64_MSR_SINT0 + VMBUS_MESSAGE_SINT);
+
+	KdpDprintf(L"UefiMain!VMBUS_MESSAGE_SINT regvalue:=> %016llx!\n", shared_sint.AsUINT64);
+
+	SControlVal.AsUINT64 = __readmsr(HvSyntheticMsrSControl);
+
+	KdpDprintf(L"UefiMain!HvSyntheticMsrSControl  regvalue:=> %016llx!\n", SControlVal.AsUINT64);
+
+	
+	synic_message_page= (UINT64)AllocateAlignedPages(1, VSM_PAGE_SIZE);
+	synic_event_page = (UINT64)AllocateAlignedPages(1, VSM_PAGE_SIZE);
 	SimpVal.BaseSimpGpa = VSM_PAGE_TO_PFN((UINT64)synic_message_page);
 	SimpVal.SimpEnabled = 1;
 	//synic_message_page = VSM_PFN_TO_PAGE(SimpVal.BaseSimpGpa);
-	synic_message_page_val = (UINT64)synic_message_page;
+	//synic_message_page_val = (UINT64)synic_message_page;
 	__writemsr(HvSyntheticMsrSimp, SimpVal.AsUINT64);
 	KdpDprintf(L"UefiMain!HvSyntheticMsrSimp  regvalue:=> %016llx, synic_message_page:=> %016llx!\n",
 		SimpVal.AsUINT64, synic_message_page);
@@ -296,19 +353,19 @@ NTSTATUS NTAPI HvSYNICVtl0()
 	__writemsr(HvSyntheticMsrSiefp, SiefpVal.AsUINT64);
 	KdpDprintf(L"UefiMain!HvSyntheticMsrSiefp  regvalue:=> %016llx, synic_event_page:=> %016llx!\n",
 		SiefpVal.AsUINT64, synic_event_page);
-	HV_SYNIC_SINT shared_sint = { 0 };
+	
 
-	shared_sint.AsUINT64 = __readmsr(HV_X64_MSR_SINT0 + VMBUS_MESSAGE_SINT);
+	
 	UINT64 shared_sintorg = shared_sint.AsUINT64;
 	shared_sint.Vector = HYPERVISOR_CALLBACK_VECTOR;
 	shared_sint.Masked = FALSE;
 
 
 	shared_sint.AutoEoi = TRUE;
-	__writemsr(HV_X64_MSR_SINT0 + VMBUS_MESSAGE_SINT, shared_sint.AsUINT64);
+	//__writemsr(HV_X64_MSR_SINT0 + VMBUS_MESSAGE_SINT, shared_sint.AsUINT64);
 	KdpDprintf(L"UefiMain!VMBUS_MESSAGE_SINT shared_sintorg:=> %016llx regvalue:=> %016llx\n",
 		shared_sintorg, shared_sint.AsUINT64);
-	SControlVal.AsUINT64 = __readmsr(HvSyntheticMsrSControl);
+	
 	SControlVal.Enable = 1;
 	__writemsr(HvSyntheticMsrSControl, SControlVal.AsUINT64);
 	KdpDprintf(L"UefiMain!HvSyntheticMsrSControl  regvalue:=> %016llx!\n", SControlVal.AsUINT64);
@@ -317,12 +374,82 @@ NTSTATUS NTAPI HvSYNICVtl0()
 	return ret;
 }
 
+UINT64 NTAPI HvVmbusSintVectorRestore(UINT64 newVector)
+{
+	HV_SYNIC_SINT shared_sint = { 0 };
+
+	shared_sint.AsUINT64 = __readmsr(HV_X64_MSR_SINT0 + VMBUS_MESSAGE_SINT);
+	UINT64 shared_sintorg = shared_sint.AsUINT64;
+	shared_sint.Vector = newVector;
+	shared_sint.Masked = FALSE;
+	shared_sint.AutoEoi = FALSE;
+	__writemsr(HV_X64_MSR_SINT0 + VMBUS_MESSAGE_SINT, shared_sint.AsUINT64);
+	KdpDprintf(L"UefiMain!VMBUS_MESSAGE_SINT shared_sintorg:=> %016llx regvalue:=> %016llx\n",
+		shared_sintorg, shared_sint.AsUINT64);
+
+
+	return shared_sint.Vector;
+}
+
+
+NTSTATUS NTAPI HvSYNICVtl0New()
+{
+	NTSTATUS ret = STATUS_SUCCESS;
+	InitGlobalHv();
+	HV_SYNIC_SIMP SimpVal = { 0 };
+	HV_SYNIC_SIEFP SiefpVal = { 0 };
+	HV_SYNIC_SCONTROL SControlVal = { 0 };
+
+	HV_SYNIC_SINT shared_sint = { 0 };
+
+	//vmbus_sint = VMBUS_MESSAGE_SINT;
+	
+	//vmbus_sint = 3;
+
+	SimpVal.AsUINT64 = __readmsr(HvSyntheticMsrSimp);
+
+	KdpDprintf(L"UefiMain!HvSyntheticMsrSimp  regvalue:=> %016llx!\n", SimpVal.AsUINT64);
+
+	SiefpVal.AsUINT64 = __readmsr(HvSyntheticMsrSiefp);
+
+	KdpDprintf(L"UefiMain!HvSyntheticMsrSiefp  regvalue:=> %016llx!\n", SiefpVal.AsUINT64);
+
+	shared_sint.AsUINT64 = __readmsr(HV_X64_MSR_SINT0 + vmbus_sint);
+
+	KdpDprintf(L"UefiMain!VMBUS_MESSAGE_SINT regvalue:=> %016llx!\n", shared_sint.AsUINT64);
+
+	SControlVal.AsUINT64 = __readmsr(HvSyntheticMsrSControl);
+
+	KdpDprintf(L"UefiMain!HvSyntheticMsrSControl  regvalue:=> %016llx!\n", SControlVal.AsUINT64);
+
+
+	synic_message_page = (UINT64)VSM_PFN_TO_PAGE(SimpVal.BaseSimpGpa );
+	synic_event_page = (UINT64)VSM_PFN_TO_PAGE(SiefpVal.BaseSiefpGpa);
+	
+	KdpDprintf(L"UefiMain!synic_message_page %p synic_event_page %p !\n", synic_message_page,synic_event_page);
+
+	if (SintVectorModify)
+	{
+		UINT64 shared_sintorg = shared_sint.AsUINT64;
+		shared_sint.Vector = HYPERVISOR_CALLBACK_VECTOR;
+		shared_sint.Masked = FALSE;
+
+
+		shared_sint.AutoEoi = TRUE;
+		__writemsr(HV_X64_MSR_SINT0 + vmbus_sint, shared_sint.AsUINT64);
+		KdpDprintf(L"UefiMain!VMBUS_MESSAGE_SINT shared_sintorg:=> %016llx regvalue:=> %016llx\n",
+			shared_sintorg, shared_sint.AsUINT64);
+
+	}
+	return ret;
+}
+
 
 EFI_STATUS NTAPI HvVmbusNegotiateVersion()
 {
-	UINTN                     EventIndex;
+	UINTN                     EventIndex=0;
 	//__writemsr(HvSyntheticMsrEom, 0);
-	//PHV_MESSAGE  bufmssg = (PHV_MESSAGE)((UINT64)synic_message_page + 0x200);
+	//PHV_MESSAGE  bufmssg = (PHV_MESSAGE)synic_message_page+vmbus_sint;
 	EFI_STATUS Status = gBS->CreateEvent(0, 0, NULL, NULL, &vmbus_negotiate_event);
 	if (EFI_ERROR(Status)) {
 		return Status;
@@ -333,10 +460,11 @@ EFI_STATUS NTAPI HvVmbusNegotiateVersion()
 	int vpdix = (int)__readmsr(HV_X64_MSR_VP_INDEX);
 	msg.vmbus_version_requested = VERSION_WIN10_V5;
 	//msg.interrupt_page = (UINT64)int_page;
-	msg.u.interrupt_page = 0x0302;
+	msg.u.interrupt_page = 0x0300| vmbus_sint;
 	msg.monitor_page1 = (UINT64)monitor_pages0;
 	msg.monitor_page2 = (UINT64)monitor_pages1;
 	msg.target_vcpu = vpdix;
+	gmessageConnectionId = VMBUS_MESSAGE_CONNECTION_ID_4;
 	KdpDprintf(L"UefiMain! HvVmbusNegotiateVersion HvHvCallPostMessageVtl0\n");
 	HvHvCallPostMessageVtl0(&msg, sizeof(struct vmbus_channel_initiate_contact));
 
@@ -345,7 +473,7 @@ EFI_STATUS NTAPI HvVmbusNegotiateVersion()
 	{
 		//KdpDprintf(L"UefiMain! ProcessPendingVmbusOpen\n");
 	}*/
-	//dumpbuf(bufmssg, 0x100);
+	
 	Status = gBS->WaitForEvent(
 		1,
 		&vmbus_negotiate_event,
@@ -365,26 +493,27 @@ EFI_STATUS NTAPI HvVmbusNegotiateVersion()
 
 EFI_STATUS NTAPI HvVmbusRequestOffers()
 {
-	UINTN                     EventIndex;
+	UINTN                     EventIndex = 0;
 	EFI_STATUS Status = gBS->CreateEvent(0, 0, NULL, NULL, &vmbus_request_offers_event);
 	if (EFI_ERROR(Status)) {
 		return Status;
 	}
 	//
-	//PHV_MESSAGE  bufmssg = (PHV_MESSAGE)((UINT64)synic_message_page + 0x200);
+	//PHV_MESSAGE  bufmssg = (PHV_MESSAGE)synic_message_page+vmbus_sint;
 	//ConfigPendingMessageSlot();
 
 	struct vmbus_channel_message_header msg = { 0 };
 	msg.msgtype = CHANNELMSG_REQUESTOFFERS;
 	KdpDprintf(L"UefiMain! HvVmbusRequestOffers HvHvCallPostMessageVtl0\n");
 	HvHvCallPostMessageVtl0(&msg, sizeof(struct vmbus_channel_message_header));
-
+	
 	Status = gBS->WaitForEvent(
 		1,
 		&vmbus_request_offers_event,
 		&EventIndex
 	);
 
+	
 	if (EFI_ERROR(Status)) {
 		return Status;
 	}
@@ -413,6 +542,7 @@ EFI_STATUS NTAPI HvVmbusRequestOffers()
 			gpipedev.child_relid = newchannelentry->offer.child_relid;
 		}
 	}
+	KdpDprintf(L"UefiMain! HvVmbusRequestOffers Succcess\n");
 	return Status;
 }
 
@@ -421,7 +551,7 @@ EFI_STATUS NTAPI HvVmbusRequestOffers()
 
 EFI_STATUS NTAPI HvVmbusOpen(UINT64 ringbuffer, UINT32* gpadl_handle)
 {
-	UINTN                     EventIndex;
+	UINTN                     EventIndex=0;
 	EFI_STATUS Status = gBS->CreateEvent(0, 0, NULL, NULL, &vmbus_gpdl_event);
 	if (EFI_ERROR(Status)) {
 		return Status;
@@ -487,7 +617,7 @@ EFI_STATUS NTAPI HvVmbusOpen(UINT64 ringbuffer, UINT32* gpadl_handle)
 
 EFI_STATUS NTAPI HvChannelOpen(struct hv_device* pdev)
 {
-	UINTN                     EventIndex;
+	UINTN                     EventIndex=0;
 	EFI_STATUS Status = gBS->CreateEvent(0, 0, NULL, NULL, &vmbus_request_open_event);
 	if (EFI_ERROR(Status)) {
 		return Status;
@@ -521,18 +651,23 @@ EFI_STATUS NTAPI HvChannelOpen(struct hv_device* pdev)
 
 void NTAPI HvVmbusTimer()
 {
-	if (signalflag == 0)
+	//PHV_MESSAGE  bufmssg = (PHV_MESSAGE)synic_message_page+vmbus_sint;
+	if (SintVectorModify)
 	{
-		return;
+		if (signalflag == 0)
+		{
+			return;
+		}
 	}
-	PHV_MESSAGE  bufmssg = (PHV_MESSAGE)((UINT64)synic_message_page + 0x200);
-	if (bufmssg->Header.MessageType == 0)
+	/*if (bufmssg->Header.MessageType == 0)
 	{
 		ConfigPendingMessageSlot();
 		return;
+	}*/
+	if(!ProcessResponseChannel())
+	{
+		
 	}
-	ProcessResponseChannel();
-
 	ConfigPendingMessageSlot();
 
 	return;
@@ -1528,9 +1663,14 @@ int vmbus_receivepacket_windbg_unpack(void* buffer, UINT32 buflen, UINT32 buflen
 }
 
 
+BOOLEAN  vmbus_channel_has_data()
+{
+	return hv_ringbuffer_peek(&gpipedev) == TRUE;
+}
+
 int vmbus_receivepacket_windbg(void* buffer, UINT32 buflen,UINT32 buflennext, UINT32* buffer_actual_len, UINT32* replyreq)
 {
-	volatile PHV_SYNIC_EVENT_FLAGS  synic_event_page_sint = (PHV_SYNIC_EVENT_FLAGS)synic_event_page + VMBUS_MESSAGE_SINT;
+	volatile PHV_SYNIC_EVENT_FLAGS  synic_event_page_sint = (PHV_SYNIC_EVENT_FLAGS)synic_event_page + vmbus_sint;
 	int failcount = 0;
 	int ret = 0;
 	BOOLEAN hasdata = FALSE;
@@ -1540,7 +1680,7 @@ int vmbus_receivepacket_windbg(void* buffer, UINT32 buflen,UINT32 buflennext, UI
 	{
 		if (!_bittestandreset64((__int64*)synic_event_page_sint, gpipedev.child_relid))
 		{		
-			if (hv_ringbuffer_peek(&gpipedev) == FALSE)
+			if (vmbus_channel_has_data() == FALSE)
 			{
 				stall(10);
 				failcount++;
@@ -1553,7 +1693,7 @@ int vmbus_receivepacket_windbg(void* buffer, UINT32 buflen,UINT32 buflennext, UI
 		}
 		else
 		{
-			if (hv_ringbuffer_peek(&gpipedev) == FALSE)
+			if (vmbus_channel_has_data() == FALSE)
 			{
 				stall(10);
 				failcount++;
@@ -1586,12 +1726,8 @@ int vmbus_receivepacket_windbg(void* buffer, UINT32 buflen,UINT32 buflennext, UI
 
 EFI_STATUS NTAPI HvVmbusServiceDxeInitialize()
 {
-	u32 requestidstack = 0;
-	u64 requestidstack64 = 0;
-	BOOLEAN ForceConsoleOutputStack = FALSE;
-	u8 buf[0x100] = { 0 };
-	u8 tmp[0x100] = { 1,2,3,4,5,5,7,8 };
-	PHV_SYNIC_EVENT_FLAGS  synic_event_page_sint = (PHV_SYNIC_EVENT_FLAGS)synic_event_page + VMBUS_MESSAGE_SINT;
+	
+	
 	pPengdingofferchannel = (PKD_CHANNEL_OFFER)AllocateZeroPool(sizeof(KD_CHANNEL_OFFER));
 	InitializeListHeadUefi(&pPengdingofferchannel->List);
 	EFI_STATUS Status = gBS->CreateEvent(0, 0, NULL, NULL, &vmbus_init_event);
@@ -1603,10 +1739,14 @@ EFI_STATUS NTAPI HvVmbusServiceDxeInitialize()
 	if (EFI_ERROR(Status)) {
 		return Status;
 	}
+	
 	Status = HvVmbusRequestOffers();
 	if (EFI_ERROR(Status)) {
 		return Status;
 	}
+
+
+
 	int pagecount = 6;
 	int pagecountsplit = 3;
 	int allpagesize = pagecount * VSM_PAGE_SIZE;
@@ -1636,18 +1776,25 @@ EFI_STATUS NTAPI HvVmbusServiceDxeInitialize()
 	Status = HvVmbusOpen((UINT64)gpipedev.send_buf.bufpage, &gpipedev.buf_gpadl_handle);
 	if (EFI_ERROR(Status)) {
 		return Status;
-	}
-
-	/*Status = HvVmbusOpen((UINT64)gpipedev.recv_buf.buf, &gpipedev.recv_buf.buf_gpadl_handle);
-	if (EFI_ERROR(Status)) {
-		return Status;
-	}*/
+	}	
 	Status = HvChannelOpen(&gpipedev);
 	if (EFI_ERROR(Status)) {
 		return Status;
 	}
 	VmbusServiceProtocolLoaded = TRUE;
 	KdpDprintf(L"VmbusServiceProtocolLoaded\r\n");
+
+	return Status;
+}
+
+void testsendrecv()
+{
+	u32 requestidstack = 0;
+	u64 requestidstack64 = 0;
+	PHV_SYNIC_EVENT_FLAGS  synic_event_page_sint = (PHV_SYNIC_EVENT_FLAGS)synic_event_page + vmbus_sint;
+	u8 buf[0x100] = { 0 };
+	u8 tmp[0x100] = { 1,2,3,4,5,5,7,8 };
+	BOOLEAN ForceConsoleOutputStack = FALSE;
 	if (ForceConsoleOutputStack)
 	{
 		struct kvec testkv = { 0 };
@@ -1729,5 +1876,4 @@ EFI_STATUS NTAPI HvVmbusServiceDxeInitialize()
 	{
 		dumpbuf((void*)synic_event_page_sint, 0x10);
 	}
-	return Status;
 }

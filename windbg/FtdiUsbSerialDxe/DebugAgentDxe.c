@@ -56,6 +56,8 @@ DisableDebugTimerExitBootService(
 {
 	Print(L"DisableDebugTimerExitBootService\r\n");
 	//SaveAndSetDebugTimerInterrupt(FALSE);
+
+	return;
 }
 
 
@@ -74,7 +76,7 @@ CoreExitBootServices(
 	IN UINTN       MapKey
 )
 {
-	Print(L"fake\r\n");
+	Print(L"CoreExitBootServices\r\n");
 	return STATUS_SUCCESS;
 }
 //F:\code\edk2-master\Build\SourceLevelDebugPkg\RELEASE_VS2019\X64\SourceLevelDebugPkg\DebugAgentDxe\DebugAgentDxe\OUTPUT\static_library_files.lst
@@ -147,8 +149,8 @@ DebugAgentDxeUnload(
 {
 	EFI_STATUS  Status;
 	Print(L"DebugAgentDxeUnload\r\n");
-	Status = EFI_UNSUPPORTED;
-	InitializeDebugAgentWindbg(ImageHandle, NULL,DEBUG_AGENT_INIT_DXE_UNLOAD, &Status, NULL);
+	Status = EFI_SUCCESS;
+	//InitializeDebugAgentWindbg(ImageHandle, NULL,DEBUG_AGENT_INIT_DXE_UNLOAD, &Status, NULL);
 
 	if (gST->ConOut != NULL) {
 		Print(L"Debug Agent: DebugAgentDxeUnload successfully!\r\n\r\n");

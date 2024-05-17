@@ -40,6 +40,7 @@ extern UINT64 synic_message_page_val;
 extern UINT64 signalflag ;
 extern UINT64 signalvalue ;
 extern BOOLEAN ForceConsoleOutput;
+extern UINT32 gmessageConnectionId;
 UINT64 hv_pVmxon = 0;
 UINT64 hv_enlvmcs = 0;
 UINT64 gapicpage = 0;
@@ -249,7 +250,7 @@ BOOLEAN  NTAPI HvMemoryDump(UINT64 gva)
 	PHV_OUTPUT_TRANSLATE_VIRTUAL_ADDRESS gpaout = (PHV_OUTPUT_TRANSLATE_VIRTUAL_ADDRESS)(hvcallrcx + outoffset);
 	HV_TRANSLATE_GVA_RESULT res = gpaout->TranslationResult;
 	UINT64 gpapfn = gpaout->GpaPage;
-	KdpDprintf(L"hvapi!HvHvTranslateVirtualAddress ret:=> %08x,code:=> %08x,gva:=> %016llx,gpa:=> %016llx!\n", ret, res.ResultCode, gva, gpapfn);
+	KdpDprintf(L"hvapi!HvHvTranslateVirtualAddress ret:=> %08x,code:=> %08x,gva:=> %016llx,gpa:=> %016llx!\r\n", ret, res.ResultCode, gva, gpapfn);
 
 	return TRUE;
 
@@ -274,7 +275,7 @@ NTSTATUS NTAPI HvHvCallPostMessageVtl0(void* buffer, UINT32 buflen)
 
 
 	PHV_INPUT_POST_MESSAGE param1 = (PHV_INPUT_POST_MESSAGE)hvcallrdx;
-	param1->ConnectionId.Id = VMBUS_MESSAGE_CONNECTION_ID_4;
+	param1->ConnectionId.Id = gmessageConnectionId;
 	param1->MessageType = 1;
 	param1->Reserved = 0;
 	param1->PayloadSize = buflen;
@@ -287,7 +288,7 @@ NTSTATUS NTAPI HvHvCallPostMessageVtl0(void* buffer, UINT32 buflen)
 	if (!NT_SUCCESS(ret))
 		return ret;
 
-	KdpDprintf(L"UefiMain!  HvHvCallPostMessage ret:=> %08x!\n", ret);
+	KdpDprintf(L"UefiMain!  HvHvCallPostMessage ret:=> %08x!\r\n", ret);
 
 	return ret;
 }

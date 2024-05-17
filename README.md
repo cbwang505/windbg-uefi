@@ -199,7 +199,7 @@ esp分区添加
 
 内容如下,放入编译出来的windbg.efi
 
-load  fs0:windbg.efi
+load -nc  fs0:windbg.efi
 
 转换.img vhdx hyper-v管理器直接附加到虚拟机 或者UltraISO.exe 启动加载引导文件 选择.img 保存iso
 

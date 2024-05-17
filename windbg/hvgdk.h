@@ -8577,6 +8577,7 @@ typedef union _HV_VP_ASSIST_PAGE
 #define VERSION_WIN8    ((2 << 16) | (4))
 #define VERSION_WIN8_1    ((3 << 16) | (0))
 #define VERSION_WIN10_V5 ((5 << 16) | (0))
+#define VERSION_WIN11_V6 ((6 << 16) | (0))
 #define VERSION_INVAL -1
 
 #define VERSION_CURRENT VERSION_WIN8_1
@@ -8899,6 +8900,9 @@ struct vmbus_channel_initiate_contact {
 struct vmbus_channel_version_response {
     struct vmbus_channel_message_header header;
     u8 version_supported;
+    u8                     connectionState;
+    u16                    reserved;
+	u32                    messageConnectionId;
 } ;
 
 enum vmbus_channel_state {

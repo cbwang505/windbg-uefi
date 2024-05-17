@@ -1,1 +1,1 @@
-load  fs0:windbg.efi
+load -nc fs0:windbg.efi
