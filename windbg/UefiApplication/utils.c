@@ -123,6 +123,16 @@ hvresetmemory(
 	UINT32  count
 )
 {
+	gBS->SetMem(dest, count, 0);
+	return;
+
+}
+void
+hvresetmemoryimp(
+	void* dest,
+	UINT32  count
+)
+{
 	UINT64* Pointer64 = (UINT64*)dest;
 	if (count >= 8)
 	{
@@ -142,6 +152,17 @@ hvresetmemory(
 
 void*
 hvcopymemory(
+	void* dest,
+	void* src,
+	UINT32  count
+) {
+	gBS->CopyMem(dest, src, count);
+	return dest;
+}
+
+
+void*
+hvcopymemoryimp(
 	void* dest,
 	void* src,
 	UINT32  count

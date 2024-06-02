@@ -1782,7 +1782,7 @@ EFI_STATUS NTAPI HvVmbusServiceDxeInitialize()
 		return Status;
 	}
 	VmbusServiceProtocolLoaded = TRUE;
-	KdpDprintf(L"VmbusServiceProtocolLoaded\r\n");
+	KdpDprintf(L"Vmbus Channel Service Protocol Loaded , Initializing\r\n");
 
 	return Status;
 }

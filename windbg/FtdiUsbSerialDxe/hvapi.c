@@ -51,6 +51,7 @@ UINT32 SkiInitialMxCsr = 0x1F80;
 static PHV_MESSAGE SimBaseSimpGpa = NULL;
 TriggerCall* vtl_call_fn = NULL;
 TriggerCall* vtl_ret_fn = NULL;
+TriggerCall* vtl_ret_fn_vtl1 = NULL;
 typedef HV_STATUS(*HvlInvokeHypercall)(UINT64 InputValue, UINT64 InputPa, UINT64 OutputPa);
 
 HvlInvokeHypercall HvcallCodeVa;
@@ -106,7 +107,9 @@ NTSTATUS NTAPI InitGlobalHv()
 	}
 	return EFI_SUCCESS;
 }
-
+void HvApicSelfIpiVtl0()
+{
+}
 
 NTSTATUS NTAPI InitGlobalHvVtl1()
 {
@@ -117,7 +120,13 @@ void NTAPI hv_vtl_ap_entry(void)
 {
 
 }
+NTSTATUS SkpPrepareForReturnToNormalMode(UINT64 rcx, UINT64 rdx)
+{
 
+	KdpDprintf(L"UefiMain!SkpPrepareForReturnToNormalMode!\n");
+
+	return 0;
+}
 NTSTATUS NTAPI HvHvTranslateVirtualAddress(UINT64 gva, UINT64* gpa)
 {
 	UINT8 buf[0x100];
@@ -277,6 +286,42 @@ NTSTATUS NTAPI HvHvCallPostMessageVtl0(void* buffer, UINT32 buflen)
 	PHV_INPUT_POST_MESSAGE param1 = (PHV_INPUT_POST_MESSAGE)hvcallrdx;
 	param1->ConnectionId.Id = gmessageConnectionId;
 	param1->MessageType = 1;
+	param1->Reserved = 0;
+	param1->PayloadSize = buflen;
+
+	hvcopymemory(param1->Payload, buffer, buflen);
+
+	//dumpbuf(hvcallrdx, 0x100);
+	NTSTATUS ret = HvcallCodeVa(input.AsUINT64, hvcallrdx, hvcallr8);
+
+	if (!NT_SUCCESS(ret))
+		return ret;
+
+	KdpDprintf(L"UefiMain!  HvHvCallPostMessage ret:=> %08x!\r\n", ret);
+
+	return ret;
+}
+
+
+
+
+
+NTSTATUS NTAPI HvHvCallPostMessageVtl0MessageType(void* buffer, UINT32 buflen, UINT32 MessageType)
+{
+
+	UINT64	hvcallrdx = hv_acquire_hypercall_input_page();
+	UINT64	hvcallr8 = hv_acquire_hypercall_output_page();
+	HV_X64_HYPERCALL_INPUT input = { 0 };
+	input.AsUINT64 = 0;
+	input.CallCode = HvCallPostMessage;
+	input.IsFast = 0;
+	input.Nested = 0;
+
+
+
+	PHV_INPUT_POST_MESSAGE param1 = (PHV_INPUT_POST_MESSAGE)hvcallrdx;
+	param1->ConnectionId.Id = gmessageConnectionId;
+	param1->MessageType = MessageType;
 	param1->Reserved = 0;
 	param1->PayloadSize = buflen;
 

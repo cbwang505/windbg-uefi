@@ -1250,11 +1250,20 @@ BOOLEAN UefiMemoryPresent(UINT64 StartingAddr, UINTN Size)
 		);
 		if (EFI_ERROR(Status)) {
 			FreePool(MemoryMap);
+			MemoryMap = NULL;
 		}
 	} while (Status == EFI_BUFFER_TOO_SMALL);
 
 	ASSERT_EFI_ERROR(Status);
+	if (EFI_ERROR(Status)) {
+		if (MemoryMap)
+		{
+			FreePool(MemoryMap);
+			MemoryMap = NULL;
+		}
 
+		return FALSE;
+	}
 	MemoryMapEntry = MemoryMap;
 	MemoryMapEnd = (EFI_MEMORY_DESCRIPTOR*)((UINT64)MemoryMap + MemoryMapSize);
 	while ((UINTN)MemoryMapEntry < (UINTN)MemoryMapEnd) {
@@ -1287,9 +1296,11 @@ BOOLEAN UefiMemoryPresent(UINT64 StartingAddr, UINTN Size)
 
 		MemoryMapEntry = NEXT_MEMORY_DESCRIPTOR(MemoryMapEntry, DescriptorSize);
 	}
-
-	FreePool(MemoryMap);
-
+	if (MemoryMap)
+	{
+		FreePool(MemoryMap);
+		MemoryMap = NULL;
+	}
 	return MemoryFound;
 }
 
@@ -1614,6 +1625,7 @@ KdSendPacket(
 	IN PSTRING MessageData,
 	IN OUT PKD_CONTEXT Context
 );
+
 ULONG
 NTAPI
 KdpCalculateChecksum(
@@ -1629,7 +1641,6 @@ KdpCalculateChecksum(
 	}
 	return Checksum;
 }
-
 
 VOID
 NTAPI
@@ -4319,7 +4330,7 @@ KdSendPacket(
 		}
 		else
 		{
-			//KdpDprintf(L"data len chk\rn");
+			Print(L"data len chk failed\rn");
 			//__debugbreak();
 		}
 	}
@@ -4358,6 +4369,7 @@ KdSendPacket(
 		}
 		else {
 			KdSendPacketVmbus(&Packet, MessageHeader, MessageData, KdContext);
+
 		}
 		KdContext->KdpControlCPending = FALSE;
 		/* Wait for acknowledge */
@@ -4380,6 +4392,32 @@ KdSendPacket(
 		else if (KdStatus == KDP_PACKET_RESEND)
 		{
 			//KdpDprintf(L"fake KDP_PACKET_RESEND\r\n");
+
+			ULONG oldChecksum = Packet.Checksum;
+			Packet.Checksum = KdpCalculateChecksum(MessageHeader->Buffer,
+				MessageHeader->Length);
+
+			/* If we have message data, add it to the packet */
+			if (MessageData != NULL)
+			{
+				if (MessageData->Length > 0)
+				{
+					
+					Packet.Checksum += KdpCalculateChecksum(MessageData->Buffer,
+						MessageData->Length);
+				}
+				else
+				{
+					Print(L"data len chk failed second\rn");
+					//__debugbreak();
+				}
+			}
+
+			if(oldChecksum!=Packet.Checksum)
+			{
+				Print(L"Checksum Match Failed %08x %08x \r\n", oldChecksum, Packet.Checksum);
+			}
+
 			continue;
 		}
 		else if (KdStatus == KDP_PACKET_TIMEOUT)
@@ -4467,8 +4505,34 @@ KdSendPacket(
 		else if (KdStatus == KDP_PACKET_RESEND)
 		{
 			//KdpDprintf(L"fake KDP_PACKET_RESEND\r\n");
+
+			ULONG oldChecksum = Packet.Checksum;
+			Packet.Checksum = KdpCalculateChecksum(MessageHeader->Buffer,
+				MessageHeader->Length);
+
+			/* If we have message data, add it to the packet */
+			if (MessageData != NULL)
+			{
+				if (MessageData->Length > 0)
+				{
+
+					Packet.Checksum += KdpCalculateChecksum(MessageData->Buffer,
+						MessageData->Length);
+				}
+				else
+				{
+					Print(L"data len chk failed second\rn");
+					//__debugbreak();
+				}
+			}
+
+			if (oldChecksum != Packet.Checksum)
+			{
+				Print(L"Checksum Match Failed %08x %08x \r\n", oldChecksum, Packet.Checksum);
+			}
+
 			return KDP_PACKET_RECEIVED;
-			//continue;
+			continue;
 		}
 		else
 		{
@@ -8186,8 +8250,8 @@ InitializeDebugIdtWindbg(
 
 
 
-	VmbusSintIdtWindbgEntry = (UINT64)GetExceptionHandlerInIdtEntry(SintVectorRestore);
-	Print(L"SintVector %p %p %p\r\n", SintVectorRestore, HYPERVISOR_CALLBACK_VECTOR, VmbusSintIdtWindbgEntry);
+	//VmbusSintIdtWindbgEntry = (UINT64)GetExceptionHandlerInIdtEntry(SintVectorRestore);
+	//Print(L"SintVector %p %p %p\r\n", SintVectorRestore, HYPERVISOR_CALLBACK_VECTOR, VmbusSintIdtWindbgEntry);
 
 	//*(UINT16*)VmbusSintIdtWindbgEntry = iretqopcode;
 
@@ -8288,7 +8352,7 @@ SetupDebugAgentEnvironmentWindbg(IN EFI_HANDLE        ImageHandle,
 	//
 	// Initialize the IDT table entries to support source level debug.
 	//
-	SintVectorRestore = HvVmbusSintVector();
+	//SintVectorRestore = HvVmbusSintVector();
 
 	HvSYNICVtl0New();
 	InitializeDebugIdtWindbg();
@@ -8407,13 +8471,7 @@ BOOLEAN EFIAPI KdInitSystem(IN EFI_HANDLE   ImageHandle,
 	KdpContext.KdpDefaultRetries = 20;
 	KdpContext.KdpControlCPending = FALSE;
 	KdpContext.KdpControlReturn = FALSE;
-	if (ForceConsoleOutput)
-	{
-		DEBUG((DEBUG_INFO, "KdInitSystem\r\n"));
-
-
-	}
-
+	
 	KdpSendControlPacket(PACKET_TYPE_KD_RESET, 0);
 
 
@@ -8449,9 +8507,9 @@ BOOLEAN EFIAPI KdInitSystem(IN EFI_HANDLE   ImageHandle,
 
 		KdpSymbolReportSynthetic(pSyntheticSymbolInfo);
 
-		stall(10);
+		//stall(10);
 		//CurrentPacketId ^= 1;
-		KdpDprintf(L"KdInitSystem Success\r\n");
+		KdpDprintf(L"KdInitSystem Success , Windbg Session Established\r\n");
 		VmbusKdInitSystemLoaded = TRUE;
 		return TRUE;
 	}
