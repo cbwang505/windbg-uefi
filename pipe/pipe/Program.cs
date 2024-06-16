@@ -118,6 +118,7 @@ namespace pipe
             {
                 if (args[3] == "auto")
                 {
+                    ProcessStartNoWindow(@"C:\Windows\System32\taskkill.exe", "/f /im vmwp.exe", true);
                     ProcessStartNoWindow(@"C:\Windows\System32\taskkill.exe", "/f /im windbg.exe",true);
                 }
             }
@@ -166,7 +167,16 @@ namespace pipe
                         ProcessStartNoWindow(@"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
                             "-exec bypass -Command \"Start-VM -Name " + vmname + "\"", true);
 
+                        if (System.Diagnostics.Process.GetProcessesByName("vmconnect").Length == 0)
+                        {
+                            string vmconnectarg = Environment.MachineName + " " + vmname;
+                            ; ProcessStartNoWindow(@"C:\Windows\System32\vmconnect.exe",
+                                vmconnectarg, false);
+                        }
 
+                       
+
+                        
                       ws.PipeOfferChannel(vmguid);
 
 
